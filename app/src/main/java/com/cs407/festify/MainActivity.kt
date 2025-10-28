@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -18,6 +19,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.ui.Alignment
+import com.cs407.festify.ui.screens.ProfileScreen
 
 import com.cs407.festify.ui.theme.FestifyTheme
 
@@ -91,12 +94,27 @@ fun FestifyApp() {
             modifier = Modifier.padding(innerPadding)
         ) {
             // TODO: add screens for each page
-            /*
+
             composable(Screen.Home.route) { HomeScreen() }
             composable(Screen.Chat.route) { ChatScreen() }
-            composable(Screen.MyEvents.route) { MyEventsScreen() }
+
+            //composable(Screen.MyEvents.route) { MyEventsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
-             */
+
         }
+    }
+}
+
+@Composable
+fun HomeScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text = "Home Screen")
+    }
+}
+
+@Composable
+fun ChatScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text = "Chat Screen")
     }
 }
