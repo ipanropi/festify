@@ -1,2 +1,2 @@
-package com.cs407.festify.ui.theme.viewmodels
+package com.cs407.festify.ui.viewmodels
 

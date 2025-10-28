@@ -1,2 +1,2 @@
-package com.cs407.festify.ui.theme.screens
+package com.cs407.festify.ui.screens
 
