@@ -19,8 +19,11 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.filled.Event
-import androidx.compose.ui.Alignment
 import com.cs407.festify.ui.screens.ProfileScreen
+import com.cs407.festify.ui.theme.screens.MyEventsScreen
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 
 import com.cs407.festify.ui.theme.FestifyTheme
 
@@ -50,8 +53,8 @@ fun FestifyApp() {
 
     val items = listOf(
         Screen.Home,
-        Screen.Chat,
         Screen.MyEvents,
+        Screen.Chat,
         Screen.Profile
     )
 
@@ -65,8 +68,8 @@ fun FestifyApp() {
                 items.forEach { screen ->
                     val icon = when (screen) {
                         Screen.Home -> Icons.Default.Home
-                        Screen.Chat -> Icons.AutoMirrored.Filled.Chat
                         Screen.MyEvents -> Icons.Default.Event
+                        Screen.Chat -> Icons.AutoMirrored.Filled.Chat
                         Screen.Profile -> Icons.Default.Person
                     }
 
@@ -96,11 +99,9 @@ fun FestifyApp() {
             // TODO: add screens for each page
 
             composable(Screen.Home.route) { HomeScreen() }
+            composable(Screen.MyEvents.route) { MyEventsScreen() }
             composable(Screen.Chat.route) { ChatScreen() }
-
-            //composable(Screen.MyEvents.route) { MyEventsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
-
         }
     }
 }
