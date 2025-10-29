@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 
 import com.cs407.festify.ui.theme.FestifyTheme
+import com.cs407.festify.ui.theme.LocalDarkMode
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -40,8 +41,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            FestifyTheme {
-                FestifyApp()
+            val darkModeState = remember { mutableStateOf(false) }
+            CompositionLocalProvider(LocalDarkMode provides darkModeState) {
+                FestifyTheme {
+                    FestifyApp()
+                }
             }
         }
     }
