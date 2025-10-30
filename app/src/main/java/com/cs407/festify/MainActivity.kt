@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -22,9 +23,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 
-import com.cs407.festify.ui.theme.FestifyTheme
+import com.cs407.festify.ui.screens.ProfileScreen
+import com.cs407.festify.ui.theme.screens.MyEventsScreen
+import com.cs407.festify.ui.theme.screens.HomeScreen
 import com.cs407.festify.ui.theme.screens.ChatListScreen
 import com.cs407.festify.ui.theme.screens.ChatScreen
+import com.cs407.festify.ui.theme.FestifyTheme
+import com.cs407.festify.ui.theme.LocalDarkMode
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -39,8 +44,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            FestifyTheme {
-                FestifyApp()
+            val darkModeState = remember { mutableStateOf(false) }
+            CompositionLocalProvider(LocalDarkMode provides darkModeState) {
+                FestifyTheme {
+                    FestifyApp()
+                }
             }
         }
     }
@@ -52,8 +60,8 @@ fun FestifyApp() {
 
     val items = listOf(
         Screen.Home,
-        Screen.Chat,
         Screen.MyEvents,
+        Screen.Chat,
         Screen.Profile
     )
 
@@ -67,8 +75,8 @@ fun FestifyApp() {
                 items.forEach { screen ->
                     val icon = when (screen) {
                         Screen.Home -> Icons.Default.Home
-                        Screen.Chat -> Icons.AutoMirrored.Filled.Chat
                         Screen.MyEvents -> Icons.Default.Event
+                        Screen.Chat -> Icons.AutoMirrored.Filled.Chat
                         Screen.Profile -> Icons.Default.Person
                     }
 
@@ -95,7 +103,6 @@ fun FestifyApp() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-
             composable(Screen.Home.route) { HomeScreen() }
             composable(Screen.Chat.route) {
                 ChatListScreen(navController)
@@ -110,46 +117,5 @@ fun FestifyApp() {
             composable(Screen.MyEvents.route) { MyEventsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
         }
-    }
-}
-@Composable
-fun HomeScreen() {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Text(
-            text = "Home Screen",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
-    }
-}
-
-@Composable
-fun MyEventsScreen() {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Text(
-            text = "My Events Screen",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
-    }
-}
-
-@Composable
-fun ProfileScreen() {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        Text(
-            text = "Profile Screen",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(16.dp)
-        )
     }
 }
