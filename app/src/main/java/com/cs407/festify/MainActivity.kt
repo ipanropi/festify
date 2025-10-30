@@ -19,13 +19,15 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+
 import com.cs407.festify.ui.screens.ProfileScreen
 import com.cs407.festify.ui.theme.screens.MyEventsScreen
 import com.cs407.festify.ui.theme.screens.HomeScreen
-import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.Alignment
-
+import com.cs407.festify.ui.theme.screens.ChatListScreen
+import com.cs407.festify.ui.theme.screens.ChatScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
 
@@ -101,19 +103,19 @@ fun FestifyApp() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // TODO: add screens for each page
-
             composable(Screen.Home.route) { HomeScreen() }
+            composable(Screen.Chat.route) {
+                ChatListScreen(navController)
+            }
+            composable(
+                route = "chat/{eventId}",
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
+                ChatScreen(eventName = eventId.replace("_", " ").replaceFirstChar { it.uppercase() })
+            }
             composable(Screen.MyEvents.route) { MyEventsScreen() }
-            composable(Screen.Chat.route) { ChatScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
         }
-    }
-}
-
-@Composable
-fun ChatScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Chat Screen")
     }
 }
