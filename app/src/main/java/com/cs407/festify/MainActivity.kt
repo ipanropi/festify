@@ -18,8 +18,13 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 
 import com.cs407.festify.ui.theme.FestifyTheme
+import com.cs407.festify.ui.theme.screens.ChatListScreen
+import com.cs407.festify.ui.theme.screens.ChatScreen
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -90,13 +95,61 @@ fun FestifyApp() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            // TODO: add screens for each page
-            /*
+
             composable(Screen.Home.route) { HomeScreen() }
-            composable(Screen.Chat.route) { ChatScreen() }
+            composable(Screen.Chat.route) {
+                ChatListScreen(navController)
+            }
+            composable(
+                route = "chat/{eventId}",
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
+                ChatScreen(eventName = eventId.replace("_", " ").replaceFirstChar { it.uppercase() })
+            }
             composable(Screen.MyEvents.route) { MyEventsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
-             */
         }
+    }
+}
+@Composable
+fun HomeScreen() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Text(
+            text = "Home Screen",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Composable
+fun MyEventsScreen() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Text(
+            text = "My Events Screen",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(16.dp)
+        )
+    }
+}
+
+@Composable
+fun ProfileScreen() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Text(
+            text = "Profile Screen",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }

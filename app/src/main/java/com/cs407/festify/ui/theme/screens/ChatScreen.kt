@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import com.cs407.festify.ui.theme.FestifyTheme
+
 data class Message(
     val senderName: String,
     val text: String,
@@ -25,16 +26,14 @@ data class Message(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(
-    messages: List<Message>,
-    onSendMessage: (String) -> Unit
-) {
+fun ChatScreen(eventName: String) {
     var newMessage by remember { mutableStateOf("") }
+    val messages = remember { sampleMessagesForEvent(eventName) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Event Chat") },
+                title = { Text("Chat — $eventName") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -48,11 +47,11 @@ fun ChatScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // Message list
+            // Messages list
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(8.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 reverseLayout = true
             ) {
                 items(messages.reversed()) { message ->
@@ -62,7 +61,7 @@ fun ChatScreen(
 
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Message input bar
+            // Message input bar (UI only)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -73,7 +72,7 @@ fun ChatScreen(
                 TextField(
                     value = newMessage,
                     onValueChange = { newMessage = it },
-                    placeholder = { Text("Type a message...") },
+                    placeholder = { Text("Message about $eventName...") },
                     modifier = Modifier
                         .weight(1f)
                         .heightIn(min = 56.dp),
@@ -84,14 +83,7 @@ fun ChatScreen(
                         unfocusedIndicatorColor = Color.Transparent
                     )
                 )
-                IconButton(
-                    onClick = {
-                        if (newMessage.isNotBlank()) {
-                            onSendMessage(newMessage.trim())
-                            newMessage = ""
-                        }
-                    }
-                ) {
+                IconButton(onClick = { /* Placeholder only */ }) {
                     Icon(
                         imageVector = Icons.Default.Send,
                         contentDescription = "Send",
@@ -105,10 +97,7 @@ fun ChatScreen(
 
 @Composable
 fun ChatBubble(message: Message) {
-    val alignment = if (message.isCurrentUser)
-        Alignment.CenterEnd
-    else
-        Alignment.CenterStart
+    val alignment = if (message.isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
     val bubbleColor = if (message.isCurrentUser)
         MaterialTheme.colorScheme.primaryContainer
     else
@@ -130,9 +119,9 @@ fun ChatBubble(message: Message) {
             if (!message.isCurrentUser) {
                 Text(
                     text = message.senderName,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
@@ -150,14 +139,30 @@ fun ChatBubble(message: Message) {
     }
 }
 
+/* --- Temporary sample data per event (UI only) --- */
+fun sampleMessagesForEvent(eventName: String): List<Message> {
+    return when (eventName.lowercase()) {
+        "networking dinner" -> listOf(
+            Message("Afif", "Who’s printing the name tags?", "7:30 PM", false),
+            Message("Adi", "Already done this morning!", "7:31 PM", true),
+            Message("Irfan", "Let’s meet at 6:45 near the hall.", "7:32 PM", false)
+        )
+        "music fest" -> listOf(
+            Message("Ishak", "Stage setup looks amazing 🔥", "8:10 PM", false),
+            Message("Adi", "Yeah! Can’t wait for the first act.", "8:12 PM", true)
+        )
+        else -> listOf(
+            Message("Festify", "Welcome to your event chat!", "Now", false)
+        )
+    }
+}
+
+/* --- UI previews --- */
 @Preview(showBackground = true)
 @Composable
 fun ChatScreenLightPreview() {
     FestifyTheme(darkTheme = false) {
-        ChatScreen(
-            messages = sampleMessages(),
-            onSendMessage = {}
-        )
+        ChatScreen("Networking Dinner")
     }
 }
 
@@ -165,16 +170,7 @@ fun ChatScreenLightPreview() {
 @Composable
 fun ChatScreenDarkPreview() {
     FestifyTheme(darkTheme = true) {
-        ChatScreen(
-            messages = sampleMessages(),
-            onSendMessage = {}
-        )
+        ChatScreen("Music Fest")
     }
 }
 
-private fun sampleMessages() = listOf(
-    Message("Irfan", "Hey everyone, ready for tonight?", "7:45 PM", false),
-    Message("Adi", "Yep, just printed the QR codes!", "7:46 PM", true),
-    Message("Afif", "Don’t forget the name tags 😆", "7:47 PM", false),
-    Message("Irfan Ishak", "On my way to the venue!", "7:49 PM", false)
-)
