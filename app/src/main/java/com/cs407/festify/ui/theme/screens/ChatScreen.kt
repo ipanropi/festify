@@ -161,7 +161,7 @@ fun sampleMessagesForEvent(eventName: String): List<Message> {
 @Preview(showBackground = true)
 @Composable
 fun ChatScreenLightPreview() {
-    FestifyTheme(darkTheme = false) {
+    FestifyTheme() {
         ChatScreen("Networking Dinner")
     }
 }
@@ -169,7 +169,7 @@ fun ChatScreenLightPreview() {
 @Preview(showBackground = true)
 @Composable
 fun ChatScreenDarkPreview() {
-    FestifyTheme(darkTheme = true) {
+    FestifyTheme() {
         ChatScreen("Music Fest")
     }
 }
