@@ -19,6 +19,7 @@ import androidx.navigation.compose.*
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.filled.Event
 import com.cs407.festify.ui.theme.screens.MyEventsScreen
+import com.cs407.festify.ui.theme.screens.HomeScreen
 import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
@@ -101,13 +102,6 @@ fun FestifyApp() {
             composable(Screen.Chat.route) { ChatScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
         }
-    }
-}
-
-@Composable
-fun HomeScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Home Screen")
     }
 }
 
