@@ -2,6 +2,7 @@ package com.cs407.festify.ui.screens
 
 import android.graphics.drawable.Icon
 import android.media.Image
+import android.util.Patterns
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +26,9 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +46,7 @@ fun ProfileScreen(viewModel: ProfileViewModel = viewModel()) {
     val scrollState = rememberScrollState()
     val darkMode = LocalDarkMode.current
     val isDark = darkMode.value
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -111,7 +116,7 @@ fun ProfileScreen(viewModel: ProfileViewModel = viewModel()) {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedButton(
-                        onClick = { },
+                        onClick = { showEditDialog = true },
                         modifier = Modifier.height(36.dp),
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
@@ -239,6 +244,18 @@ fun ProfileScreen(viewModel: ProfileViewModel = viewModel()) {
                 }
             }
         }
+    }
+
+    if (showEditDialog) {
+        EditProfileDialog(
+            currentName = uiState.name,
+            currentEmail = uiState.email,
+            onDismiss = { showEditDialog = false },
+            onSave = { name, email ->
+                viewModel.editProfile(name, email)
+                showEditDialog = false
+            }
+        )
     }
 }
 
@@ -396,4 +413,100 @@ fun SettingSwitch(
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
+}
+
+@Composable
+fun EditProfileDialog(
+    currentName: String,
+    currentEmail: String,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    var name by remember { mutableStateOf(currentName) }
+    var email by remember { mutableStateOf(currentEmail) }
+    var nameError by remember { mutableStateOf(false) }
+    var emailError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Edit Profile",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        nameError = it.isBlank()
+                    },
+                    label = { Text("Name") },
+                    isError = nameError,
+                    supportingText = {
+                        if (nameError) {
+                            Text("Name cannot be empty")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        emailError = !Patterns.EMAIL_ADDRESS.matcher(it).matches()
+                    },
+                    label = { Text("Email") },
+                    isError = emailError,
+                    supportingText = {
+                        if (emailError) {
+                            Text("Please enter a valid email")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                        onSave(name, email)
+                    } else {
+                        nameError = name.isBlank()
+                        emailError = !Patterns.EMAIL_ADDRESS.matcher(email).matches()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp)
+    )
 }
