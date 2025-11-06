@@ -2,8 +2,6 @@ package com.cs407.festify.ui.theme.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -15,54 +13,98 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.cs407.festify.data.model.Event
-import com.cs407.festify.ui.theme.viewmodels.HomeScreenViewModel
 
 @Composable
-fun HomeScreen(viewModel: HomeScreenViewModel = viewModel()) {
+fun HomeScreen() {
     var query by remember { mutableStateOf("") }
-    val events by viewModel.events.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Header Section
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("Find and join amazing events near you", fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(12.dp))
+    // Hardcoded event (no ViewModel)
+    val event = Event(
+        id = "1",
+        title = "Tech Startup Networking",
+        description = "Connect with fellow entrepreneurs and innovators. Great opportunity to share ideas, find mentors, and build your startup network!",
+        imageUrl = "https://images.unsplash.com/photo-1551836022-4c4c79ecde51",
+        date = "Nov 5, 2025",
+        time = "6:00 PM - 9:00 PM",
+        location = "Innovation Hub, Downtown",
+        attendees = 42,
+        maxAttendees = 80,
+        status = "upcoming",
+        userRsvp = "attending"
+    )
 
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search events…") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Title and Search Bar
+        Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("Find and join amazing events near you", fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search events…") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Only one event card
+        EventCard(event)
+    }
+}
+
+@Composable
+fun EventCard(event: Event) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column {
+            // Network image (uses Coil)
+            AsyncImage(
+                model = event.imageUrl,
+                contentDescription = event.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                contentScale = ContentScale.Crop
             )
-        }
 
-        // Event List
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-        ) {
-            itemsIndexed(events) { index, event ->
-                EventCard(event)
-
-                // Load more when reaching bottom
-                if (index == events.lastIndex) {
-                    LaunchedEffect(Unit) {
-                        viewModel.loadMoreEvents()
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    StatusTag(event.status)
+                    if (event.userRsvp == "attending") {
+                        AssistChip(onClick = {}, label = { Text("Attending") })
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(event.title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("${event.date} · ${event.time}", fontSize = 14.sp)
+                Text(event.location, fontSize = 14.sp)
+                Text(
+                    "${event.attendees}/${event.maxAttendees} attending",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(event.description, fontSize = 13.sp)
             }
         }
     }
 }
-
 
 @Composable
 fun StatusTag(status: String) {
