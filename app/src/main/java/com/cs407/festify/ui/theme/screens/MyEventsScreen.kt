@@ -72,29 +72,7 @@ fun MyEventsScreen(
     }
 
 
-
-
-
-
 }
 
 
 
-// A helper composable for the icon + text rows
-@Composable
-fun InfoRow(icon: ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = Color.Gray
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.DarkGray
-        )
-    }
-}

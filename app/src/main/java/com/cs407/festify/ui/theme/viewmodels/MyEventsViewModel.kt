@@ -12,7 +12,6 @@ class MyEventsViewModel : ViewModel() {
     val myEvents: StateFlow<List<Event>> = _myEvents
 
     init {
-        // Load some placeholder data when the ViewModel is created
         loadMyEvents()
     }
 
