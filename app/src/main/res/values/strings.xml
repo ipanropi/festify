@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">festify</string>
+    <string name="image_placeholder">https://images.unsplash.com/photo-1551836022-4c4c79ecde51</string>
 </resources>
