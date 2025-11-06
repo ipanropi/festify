@@ -45,54 +45,7 @@ fun MyEventsScreen(
     }
 }
 
-@Composable
-fun EventCard(event: Event) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column {
-            Box {
-                Image(
 
-                    painter = rememberAsyncImagePainter(event.imageUrl),
-                    contentDescription = event.title,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
-                    contentScale = ContentScale.Crop
-                )
-
-                // TODO: Add "upcoming" and "attending" tags here
-                // use a Surface with text, and Modifier.align(), will provide next
-            }
-
-
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = event.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                InfoRow(icon = Icons.Default.DateRange, text = "${event.date}  |  ${event.time}")
-                InfoRow(icon = Icons.Default.LocationOn, text = event.location)
-                InfoRow(icon = Icons.Default.People, text = "${event.attendees}/${event.maxAttendees} attending")
-
-                Text(
-                    text = event.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-        }
-    }
-}
 
 // A helper composable for the icon + text rows
 @Composable
