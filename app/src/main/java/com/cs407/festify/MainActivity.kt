@@ -30,6 +30,7 @@ import com.cs407.festify.ui.theme.screens.ChatListScreen
 import com.cs407.festify.ui.theme.screens.ChatScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
+import dagger.hilt.android.AndroidEntryPoint
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -38,7 +39,7 @@ sealed class Screen(val route: String, val title: String) {
     object MyEvents : Screen("myevents", "My Events")
 }
 
-
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
