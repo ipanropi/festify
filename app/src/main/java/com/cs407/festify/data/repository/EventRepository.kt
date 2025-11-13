@@ -142,8 +142,8 @@ class EventRepository @Inject constructor(
      */
     suspend fun createEvent(event: Event): Result<String> {
         return try {
-            val userId = currentUserId
-                ?: return Result.failure(Exception("No user signed in"))
+            //  TESTING CODE
+            val userId = currentUserId ?: "TESTING_USER_ID" // Use a test ID for testing
 
             val userName = currentUserName ?: "Unknown"
 
