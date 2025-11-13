@@ -30,6 +30,7 @@ import com.cs407.festify.ui.theme.screens.ChatListScreen
 import com.cs407.festify.ui.theme.screens.ChatScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
+import com.cs407.festify.ui.theme.screens.EventDetailsScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 sealed class Screen(val route: String, val title: String) {
@@ -104,7 +105,7 @@ fun FestifyApp() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { HomeScreen() }
+            composable(Screen.Home.route) { HomeScreen(navController) }
             composable(Screen.Chat.route) {
                 ChatListScreen(navController)
             }
@@ -117,6 +118,11 @@ fun FestifyApp() {
             }
             composable(Screen.MyEvents.route) { MyEventsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
+            composable("event/{eventId}") { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId")!!
+                EventDetailsScreen(eventId, navController)
+            }
+
         }
     }
 }

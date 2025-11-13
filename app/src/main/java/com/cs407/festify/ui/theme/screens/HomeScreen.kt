@@ -1,6 +1,7 @@
 package com.cs407.festify.ui.theme.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,11 +14,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.cs407.festify.data.model.Event
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(navController: NavController) {
+
+
     var query by remember { mutableStateOf("") }
 
     // Hardcoded event (no ViewModel)
@@ -56,14 +60,18 @@ fun HomeScreen() {
         Spacer(modifier = Modifier.height(16.dp))
 
         // Only one event card
-        EventCard(event)
+        EventCard(event) { eventId ->
+            navController.navigate("event/$eventId")
+        }
     }
 }
 
 @Composable
-fun EventCard(event: Event) {
+fun EventCard(event: Event, onClick: (String) -> Unit = {} ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick(event.id) },
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
