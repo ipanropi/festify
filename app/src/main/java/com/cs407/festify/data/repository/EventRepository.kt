@@ -31,14 +31,12 @@ class EventRepository @Inject constructor(
         get() = auth.currentUser?.displayName
 
     /**
-     * Get all upcoming public events
+     * Real-time stream of upcoming events
+     * Shows ALL PUBLIC events, regardless of startDateTime
      */
     fun getUpcomingEvents(): Flow<Result<List<Event>>> = callbackFlow {
         val listener = firestore.collection(FirestoreCollections.EVENTS)
-            .whereEqualTo(FirestoreCollections.Fields.IS_PUBLIC, true)
-            .whereEqualTo(FirestoreCollections.Fields.STATUS, FirestoreCollections.Status.UPCOMING)
-            .whereGreaterThan(FirestoreCollections.Fields.START_DATE_TIME, Timestamp.now())
-            .orderBy(FirestoreCollections.Fields.START_DATE_TIME, Query.Direction.ASCENDING)
+            .orderBy(FirestoreCollections.Fields.CREATED_AT, Query.Direction.DESCENDING)
             .limit(50)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -55,6 +53,7 @@ class EventRepository @Inject constructor(
 
         awaitClose { listener.remove() }
     }
+
 
     /**
      * Get events hosted by current user
@@ -401,4 +400,5 @@ class EventRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
 }

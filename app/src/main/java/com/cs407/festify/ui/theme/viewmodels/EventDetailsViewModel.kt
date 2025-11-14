@@ -11,29 +11,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class HomeScreenViewModel @Inject constructor(
+class EventDetailsViewModel @Inject constructor(
     private val eventRepository: EventRepository
 ) : ViewModel() {
 
-    private val _events = MutableStateFlow<List<Event>>(emptyList())
-    val events: StateFlow<List<Event>> = _events
+    private val _event = MutableStateFlow<Event?>(null)
+    val event: StateFlow<Event?> = _event
 
-    init {
-        observeEvents()
-    }
-
-    private fun observeEvents() {
+    fun loadEvent(eventId: String) {
         viewModelScope.launch {
-            eventRepository.getUpcomingEvents()
-                .collect { result ->
-                    if (result.isSuccess) {
-                        _events.value = result.getOrNull() ?: emptyList()
-                    }
-                }
+            val result = eventRepository.getEvent(eventId)
+            if (result.isSuccess) {
+                _event.value = result.getOrNull()
+            }
         }
     }
 }
-
-
-
-

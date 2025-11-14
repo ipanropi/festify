@@ -21,37 +21,41 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.cs407.festify.data.model.Event
+import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventDetailsScreen(
     eventId: String,
-    navController: NavController
+    navController: NavController,
+    viewModel: EventDetailsViewModel = hiltViewModel()
 ) {
+    val event by viewModel.event.collectAsState()
 
-    val event = Event(
-        id = eventId,
-        title = "Tech Startup Networking",
-        description = "Long description...",
-        imageUrl = "https://images.unsplash.com/photo-1551836022-4c4c79ecde51",
-        date = "Nov 5, 2025",
-        time = "6:00 PM - 9:00 PM",
-        location = "Innovation Hub, Downtown",
-        attendees = 42,
-        maxAttendees = 80,
-        status = "upcoming",
-        userRsvp = "attending"
-    )
+    // load only once
+    LaunchedEffect(eventId) {
+        viewModel.loadEvent(eventId)
+    }
 
-    Scaffold() { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding)) {
-            EventDetailsContent(event, navController)
+    if (event == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    Scaffold { innerPadding ->
+        Column(Modifier.padding(innerPadding)) {
+            EventDetailsContent(event!!, navController)
         }
     }
 }
+
+
+
 
 @Composable
 fun EventDetailsContent(
@@ -63,26 +67,32 @@ fun EventDetailsContent(
 
     // ===== PARENT STACK FOR IMAGE + BACK BUTTON =====
     Box {
-        // Header Image
-        AsyncImage(
-            model = event.imageUrl,
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp),
-            contentScale = ContentScale.Crop
-        )
+        // IMAGE OR GRAY PLACEHOLDER
+        if (event.imageUrl.isNullOrEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .background(Color.Gray)
+            )
+        } else {
+            AsyncImage(
+                model = event.imageUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp),
+                contentScale = ContentScale.Crop
+            )
+        }
 
-        // Floating round back button
+        // BACK BUTTON
         IconButton(
             onClick = { navController.popBackStack() },
             modifier = Modifier
                 .padding(16.dp)
                 .size(40.dp)
-                .background(
-                    color = Color.White,
-                    shape = CircleShape
-                )
+                .background(Color.White, CircleShape)
                 .align(Alignment.TopStart)
         ) {
             Icon(
@@ -92,6 +102,7 @@ fun EventDetailsContent(
             )
         }
     }
+
 
 
     Column(
