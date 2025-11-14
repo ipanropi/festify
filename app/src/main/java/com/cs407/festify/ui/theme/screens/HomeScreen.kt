@@ -1,8 +1,11 @@
 package com.cs407.festify.ui.theme.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -10,61 +13,61 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.cs407.festify.data.model.Event
+import com.cs407.festify.ui.theme.viewmodels.HomeScreenViewModel
 
 @Composable
-fun HomeScreen(navController: NavController) {
-
-
+fun HomeScreen(
+    navController: NavController,
+    viewModel: HomeScreenViewModel = hiltViewModel()
+) {
+    val events by viewModel.events.collectAsState()
     var query by remember { mutableStateOf("") }
 
-    // Hardcoded event (no ViewModel)
-    val event = Event(
-        id = "1",
-        title = "Tech Startup Networking",
-        description = "Connect with fellow entrepreneurs and innovators. Great opportunity to share ideas, find mentors, and build your startup network!",
-        imageUrl = "https://images.unsplash.com/photo-1551836022-4c4c79ecde51",
-        date = "Nov 5, 2025",
-        time = "6:00 PM - 9:00 PM",
-        location = "Innovation Hub, Downtown",
-        attendees = 42,
-        maxAttendees = 80,
-        status = "upcoming",
-        userRsvp = "attending"
-    )
-
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Title and Search Bar
-        Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text("Find and join amazing events near you", fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(12.dp))
+        item {
+            Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
 
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search events…") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
-        )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search events…") }
+            )
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
+        }
 
-        // Only one event card
-        EventCard(event) { eventId ->
-            navController.navigate("event/$eventId")
+        if (events.isEmpty()) {
+            item { Text("No events found.") }
+        } else {
+            items(events) { event ->
+                EventCard(event) { id ->
+                    navController.navigate("event/$id")
+                }
+            }
         }
     }
 }
+
+
+
+
+
 
 @Composable
 fun EventCard(event: Event, onClick: (String) -> Unit = {} ) {
@@ -77,15 +80,25 @@ fun EventCard(event: Event, onClick: (String) -> Unit = {} ) {
     ) {
         Column {
             // Network image (uses Coil)
-            AsyncImage(
-                model = event.imageUrl,
-                contentDescription = event.title,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
-                contentScale = ContentScale.Crop
-            )
+            if (event.imageUrl.isNullOrEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(Color.Gray)
+                )
+            } else {
+                AsyncImage(
+                    model = event.imageUrl,
+                    contentDescription = event.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
 
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
