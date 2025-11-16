@@ -31,6 +31,9 @@ import com.cs407.festify.ui.theme.screens.ChatScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
 import com.cs407.festify.ui.theme.screens.EventDetailsScreen
+import com.cs407.festify.ui.theme.screens.LoginScreen
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 
 sealed class Screen(val route: String, val title: String) {
@@ -47,9 +50,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val darkModeState = remember { mutableStateOf(false) }
+            val auth = FirebaseAuth.getInstance()
+            var isLoggedIn by remember { mutableStateOf(auth.currentUser != null) }
+
             CompositionLocalProvider(LocalDarkMode provides darkModeState) {
                 FestifyTheme {
-                    FestifyApp()
+                    if (isLoggedIn) {
+                        FestifyApp()
+                    } else {
+                        LoginScreen(
+                            onLoginSuccess = { isLoggedIn = true }
+                        )
+                    }
                 }
             }
         }
