@@ -30,6 +30,11 @@ import com.cs407.festify.ui.theme.screens.ChatListScreen
 import com.cs407.festify.ui.theme.screens.ChatScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
+import com.cs407.festify.ui.theme.screens.EventDetailsScreen
+import com.cs407.festify.ui.theme.screens.LoginScreen
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -38,16 +43,25 @@ sealed class Screen(val route: String, val title: String) {
     object MyEvents : Screen("myevents", "My Events")
 }
 
-
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val darkModeState = remember { mutableStateOf(false) }
+            val auth = FirebaseAuth.getInstance()
+            var isLoggedIn by remember { mutableStateOf(auth.currentUser != null) }
+
             CompositionLocalProvider(LocalDarkMode provides darkModeState) {
                 FestifyTheme {
-                    FestifyApp()
+                    if (isLoggedIn) {
+                        FestifyApp()
+                    } else {
+                        LoginScreen(
+                            onLoginSuccess = { isLoggedIn = true }
+                        )
+                    }
                 }
             }
         }
@@ -103,7 +117,7 @@ fun FestifyApp() {
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Home.route) { HomeScreen() }
+            composable(Screen.Home.route) { HomeScreen(navController) }
             composable(Screen.Chat.route) {
                 ChatListScreen(navController)
             }
@@ -116,6 +130,11 @@ fun FestifyApp() {
             }
             composable(Screen.MyEvents.route) { MyEventsScreen() }
             composable(Screen.Profile.route) { ProfileScreen() }
+            composable("event/{eventId}") { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId")!!
+                EventDetailsScreen(eventId, navController)
+            }
+
         }
     }
 }
