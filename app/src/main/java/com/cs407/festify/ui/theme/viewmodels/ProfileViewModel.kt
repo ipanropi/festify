@@ -2,63 +2,137 @@ package com.cs407.festify.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cs407.festify.data.model.Achievement
+import com.cs407.festify.data.repository.AuthRepository
+import com.cs407.festify.data.repository.UserRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ProfileUiState(
-    val name: String = "John Doe",
-    val email: String = "john.doe@email.com",
-    val initials: String = "JD",
-    val eventsAttended: Int = 24,
-    val eventsHosted: Int = 8,
-    val rating: Double = 4.8,
-    val upcomingEvents: Int = 3,
-    val connections: Int = 156,
-    val achievements: List<Achievement> = listOf(
-        Achievement("Super Host", "Hosted 5 successful events", true),
-        Achievement("Network Builder", "Connected with 100+ people", false)
-    ),
+    val isLoading: Boolean = true,
+    val error: String? = null,
+    val name: String = "",
+    val email: String = "",
+    val initials: String = "",
+    val eventsAttended: Int = 0,
+    val eventsHosted: Int = 0,
+    val rating: Double = 0.0,
+    val upcomingEvents: Int = 0,
+    val connections: Int = 0,
+    val achievements: List<Achievement> = emptyList(),
     val darkMode: Boolean = false,
     val pushNotifications: Boolean = true
 )
 
-data class Achievement(
-    val title: String,
-    val description: String,
-    val isNew: Boolean
-)
-
-class ProfileViewModel : ViewModel() {
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
+    private val authRepository: AuthRepository,
+    private val userRepository: UserRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState
 
+    init {
+        loadUserProfile()
+        loadAchievements()
+    }
+
+    private fun loadUserProfile() {
+        viewModelScope.launch {
+            userRepository.getCurrentUserProfile().collect { result ->
+                result.onSuccess { user ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = null,
+                            name = user.name,
+                            email = user.email,
+                            initials = user.initials,
+                            eventsAttended = user.eventsAttended,
+                            eventsHosted = user.eventsHosted,
+                            rating = user.rating,
+                            upcomingEvents = user.upcomingEvents,
+                            connections = user.connections,
+                            darkMode = user.settings.darkMode,
+                            pushNotifications = user.settings.pushNotifications
+                        )
+                    }
+                }.onFailure { exception ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = exception.message ?: "Failed to load profile"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadAchievements() {
+        viewModelScope.launch {
+            userRepository.getUserAchievements().collect { result ->
+                result.onSuccess { achievements ->
+                    _uiState.update {
+                        it.copy(achievements = achievements)
+                    }
+                }.onFailure {
+                    // Silently fail for achievements, not critical
+                    _uiState.update {
+                        it.copy(achievements = emptyList())
+                    }
+                }
+            }
+        }
+    }
+
     fun toggleDarkMode() {
-        _uiState.update { it.copy(darkMode = !it.darkMode) }
+        val newValue = !_uiState.value.darkMode
+        _uiState.update { it.copy(darkMode = newValue) }
+
+        viewModelScope.launch {
+            userRepository.updateUserSettings(darkMode = newValue)
+        }
     }
 
     fun toggleNotifications() {
-        _uiState.update { it.copy(pushNotifications = !it.pushNotifications) }
+        val newValue = !_uiState.value.pushNotifications
+        _uiState.update { it.copy(pushNotifications = newValue) }
+
+        viewModelScope.launch {
+            userRepository.updateUserSettings(pushNotifications = newValue)
+        }
     }
 
     fun editProfile(newName: String, newEmail: String) {
-        _uiState.update {
-            it.copy(
-                name = newName,
-                email = newEmail,
-                initials = newName.split(" ")
-                    .take(2)
-                    .joinToString("") { n -> n.first().uppercaseChar().toString() }
-            )
+        viewModelScope.launch {
+            // Update in Firestore
+            val result = userRepository.updateUserProfile(name = newName)
+
+            result.onSuccess {
+                // Also update email in Firebase Auth
+                authRepository.updateEmail(newEmail)
+
+                // UI will be updated automatically via the Flow
+            }.onFailure { exception ->
+                _uiState.update {
+                    it.copy(error = exception.message ?: "Failed to update profile")
+                }
+            }
         }
     }
 
     fun refreshProfileData() {
-        // Example of async loading later:
-        viewModelScope.launch {
-            // simulate network call or database fetch
-        }
+        loadUserProfile()
+        loadAchievements()
+    }
+
+    fun signOut() {
+        authRepository.signOut()
     }
 }

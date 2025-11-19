@@ -11,11 +11,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.KeyboardType
-import com.cs407.festify.auth.EmailResult
-import com.cs407.festify.auth.PasswordResult
-import com.cs407.festify.auth.validateEmail
-import com.cs407.festify.auth.validatePassword
-import com.cs407.festify.auth.signIn
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.cs407.festify.data.repository.AuthRepository
+import com.cs407.festify.data.repository.EmailResult
+import com.cs407.festify.data.repository.PasswordResult
+import com.cs407.festify.data.repository.validateEmail
+import com.cs407.festify.data.repository.validatePassword
+import com.cs407.festify.ui.theme.viewmodels.LoginViewModel
 
 @Composable
 fun ErrorText(error: String?, modifier: Modifier = Modifier) {
@@ -30,7 +32,11 @@ fun ErrorText(error: String?, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    viewModel: LoginViewModel = hiltViewModel()
+) {
+    val authRepository = viewModel.authRepository
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -110,7 +116,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     }
 
                     // Firebase sign-in or create-account
-                    signIn(
+                    authRepository.signInOrSignUp(
                         email = email,
                         password = password,
                         onSuccess = {
