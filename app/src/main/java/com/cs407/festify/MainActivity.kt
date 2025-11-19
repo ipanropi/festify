@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.DisposableEffect
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
@@ -31,6 +32,7 @@ import com.cs407.festify.ui.theme.screens.ChatScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -41,11 +43,32 @@ sealed class Screen(val route: String, val title: String) {
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var firebaseAuth: FirebaseAuth
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val darkModeState = remember { mutableStateOf(false) }
+<<<<<<< Updated upstream
+=======
+            var isLoggedIn by remember { mutableStateOf(firebaseAuth.currentUser != null) }
+
+            // Listen to auth state changes
+            DisposableEffect(Unit) {
+                val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+                    isLoggedIn = auth.currentUser != null
+                }
+                firebaseAuth.addAuthStateListener(authStateListener)
+
+                onDispose {
+                    firebaseAuth.removeAuthStateListener(authStateListener)
+                }
+            }
+
+>>>>>>> Stashed changes
             CompositionLocalProvider(LocalDarkMode provides darkModeState) {
                 FestifyTheme {
                     FestifyApp()
