@@ -1,8 +1,10 @@
 package com.cs407.festify.data.repository
 
+import android.net.Uri
 import com.cs407.festify.data.model.Attendee
 import com.cs407.festify.data.model.Event
 import com.cs407.festify.data.remote.FirestoreCollections
+import com.google.firebase.Firebase
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -14,6 +16,10 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.google.firebase.storage.storage
+import kotlinx.coroutines.tasks.await
+
+
 
 /**
  * Repository for handling event operations
@@ -141,8 +147,8 @@ class EventRepository @Inject constructor(
      */
     suspend fun createEvent(event: Event): Result<String> {
         return try {
-            //  TESTING CODE
-            val userId = currentUserId ?: "TESTING_USER_ID" // Use a test ID for testing
+            val userId = currentUserId
+                ?: return Result.failure(Exception("Cannot create event: User not signed in."))
 
             val userName = currentUserName ?: "Unknown"
 
@@ -401,4 +407,29 @@ class EventRepository @Inject constructor(
         }
     }
 
+    suspend fun uploadEventImage(imageUri: Uri): Result<String> {
+        // Get a reference to Firebase Storage
+        val storage = Firebase.storage
+        return try {
+            val userId = currentUserId
+                ?: return Result.failure(Exception("Cannot upload image: User not signed in."))
+
+            // Create a unique file name to prevent overwrites
+            val fileName = "event_images/${userId}_${System.currentTimeMillis()}.jpg"
+            val imageRef = storage.reference.child(fileName)
+
+            // 1. Upload the file from the local Uri
+            imageRef.putFile(imageUri).await()
+
+            // 2. Get the public download URL for the uploaded file
+            val downloadUrl = imageRef.downloadUrl.await().toString()
+
+            Result.success(downloadUrl)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 }
+
+

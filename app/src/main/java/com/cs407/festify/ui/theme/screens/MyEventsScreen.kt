@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.Style
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.isEmpty
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -42,36 +43,36 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.activity.result.launch
+import androidx.compose.ui.graphics.vector.path
+import android.provider.MediaStore.Audio.Media
+import androidx.navigation.NavController
 
-
+/**
+ * MyEventsScreen is a stateful composable that displays the events created by the current user.
+ * It allows users to see their list of events and provides a way to create new ones.
+ *
+ * @param navController The NavController used for navigating to other screens, like event details.
+ * @param viewModel The MyEventsViewModel instance that provides the state (list of events) and business logic.
+ */
 @Composable
 fun MyEventsScreen(
-    // Get the ViewModel that's automatically created
-    viewModel: MyEventsViewModel = hiltViewModel()
+    viewModel: MyEventsViewModel = hiltViewModel(),
+    navController : NavController
 ) {
 
+    // --- STATE MANAGEMENT ---
     var showCreateEventDialog by remember { mutableStateOf(false) }
 
-    Spacer(modifier = Modifier.height(16.dp))
     // Observe the list of events from the ViewModel
     val myEvents by viewModel.myEvents.collectAsState()
 
 
-    val event = Event(
-        id = "1",
-        title = "Tech Startup Networking",
-        description = "Connect with fellow entrepreneurs and innovators. Great opportunity to share ideas, find mentors, and build your startup network!",
-        imageUrl = "https://images.unsplash.com/photo-1551836022-4c4c79ecde51",
-        date = "Nov 5, 2025",
-        time = "6:00 PM - 9:00 PM",
-        location = "Innovation Hub, Downtown",
-        attendees = 42,
-        maxAttendees = 80,
-        status = "upcoming",
-        userRsvp = "attending"
-    )
-
-
+    // --- UI ---
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
@@ -83,34 +84,74 @@ fun MyEventsScreen(
             }
         }
     ) { innerPadding ->
-
-
-        Column(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .padding(16.dp)
+                .fillMaxSize()
         ) {
-            Text("My Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-            EventCard(event = event)
-            Spacer(modifier = Modifier.height(16.dp))
-        }
 
-
-        if (showCreateEventDialog) {
-            CreateEventDialog(
-                onDismiss = { showCreateEventDialog = false },
-
-                onCreateEvent = { title, description, location, timestamp, max, tags ->
-
-                    viewModel.createEvent(title, description, location, timestamp, max, tags)
-                    showCreateEventDialog = false
+            // LazyColumn to display the list of events
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(), // It fills the Box
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    Text("My Events", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 }
-            )
+                // if event empty show messages to add event
+                if (myEvents.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 64.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                "No events yet.",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                "Tap the '+' button to create your first event!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                } else {
+                    // Display the list of events
+                    items(myEvents) { event ->
+                        EventCard(event) { id ->
+                            // Navigate to the event details screen when a card is clicked
+                            navController.navigate("event/$id")
+                        }
+                    }
+                }
+            }
+
+            // Show the CreateEventDialog if showCreateEventDialog is true
+            if (showCreateEventDialog) {
+                CreateEventDialog(
+                    onDismiss = { showCreateEventDialog = false },
+                    onCreateEvent = { title, description, location, timestamp, max, tags, imageUri ->
+                        viewModel.createEvent(title, description, location, timestamp, max, tags, imageUri)
+                        showCreateEventDialog = false
+                    }
+                )
+            }
         }
     }
 }
 
+/**
+ * A dialog composable for creating a new event. It contains a form with various fields.
+ * This is a stateless composable, where all state is hoisted to the caller.
+ *
+ * @param onDismiss A lambda function to be invoked when the dialog is dismissed.
+ * @param onCreateEvent A lambda function to be invoked when the user confirms event creation, passing all form data.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateEventDialog(
@@ -121,7 +162,8 @@ fun CreateEventDialog(
         location: String,
         startDateTime: Timestamp,
         maxAttendees: Int,
-        tags: List<String>
+        tags: List<String>,
+        imageUri: Uri?
     ) -> Unit
 ) {
     // --- Form States ---
@@ -130,6 +172,15 @@ fun CreateEventDialog(
     var location by remember { mutableStateOf("") }
     var maxAttendees by remember { mutableStateOf("") }
     var tags by remember { mutableStateOf("") }
+    var imageUri by remember { mutableStateOf<Uri?>(null) }
+    // handle image upload, receives URI of the selected image
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = PickVisualMedia(),
+        onResult = { uri ->
+            // When the user selects an image, the result URI is stored here
+            imageUri = uri
+        }
+    )
 
     // --- Date/Time Picker States ---
     val datePickerState = rememberDatePickerState()
@@ -184,12 +235,15 @@ fun CreateEventDialog(
 
 
 
+    // the main AlertDialog that contains the entire scrollable form.
+    // this will be triggered when we click create new event
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create New Event") },
         text = {
             //  LazyColumn to make the form scrollable
             LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Event title
                 item {
                     OutlinedTextField(
                         value = title,
@@ -198,6 +252,7 @@ fun CreateEventDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                // --- Description ---
                 item {
                     OutlinedTextField(
                         value = description,
@@ -207,7 +262,7 @@ fun CreateEventDialog(
                     )
                 }
 
-                // --- 8. Date and Time Pickers ---
+                // Date and Time Pickers ---
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -237,7 +292,7 @@ fun CreateEventDialog(
                         }
                     }
                 }
-
+                // location
                 item {
                     OutlinedTextField(
                         value = location,
@@ -247,6 +302,7 @@ fun CreateEventDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                // max attendees
                 item {
                     OutlinedTextField(
                         value = maxAttendees,
@@ -258,21 +314,33 @@ fun CreateEventDialog(
                     )
                 }
 
-                // Image Upload Placeholder
+                // Image Upload, if no image uploaded use Placeholder
                 item {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
                     ) {
                         Icon(Icons.Outlined.Image, "Upload Image", modifier = Modifier.size(40.dp), tint = Color.Gray)
                         Text("Upload event image or select from gallery", style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = { /* TODO: Launch image picker */ }) {
-                            Text("Choose Image")
+                        OutlinedButton(onClick = {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(PickVisualMedia.ImageOnly) // Limit to images
+                            )
+                        }) {
+                            // Show different text depending on whether an image is selected
+                            Text(if (imageUri == null) "Select Image" else "Change Image")
+                        }
+
+                        imageUri?.let {
+                            Text("Selected: ${it.path?.substringAfterLast('/')}", style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                }
 
+                }
+                // tags, for finding relatable events
                 item {
                     OutlinedTextField(
                         value = tags,
@@ -294,17 +362,23 @@ fun CreateEventDialog(
                 }
             }
         },
+
+
         confirmButton = {
             Button(
                 onClick = {
+
+                    // Combine the selected date and time into a single Timestamp
                     val finalTimestamp = combineDateAndTime(
                         selectedDateMillis,
                         selectedTimeHour,
                         selectedTimeMinute
                     )
+                    // if no max attendess, default to 100
                     val maxAttendeesInt = maxAttendees.toIntOrNull() ?: 100 // Default to 100
                     val tagsList = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
+                    // Call the onCreateEvent callback with the collected data
                     if (finalTimestamp != null) {
                         onCreateEvent(
                             title,
@@ -312,7 +386,8 @@ fun CreateEventDialog(
                             location,
                             finalTimestamp,
                             maxAttendeesInt,
-                            tagsList
+                            tagsList,
+                            imageUri
                         )
                     }
                     onDismiss()
@@ -329,6 +404,10 @@ fun CreateEventDialog(
 }
 
 // --- Helper Function to combine results ---
+/**
+ * A private helper function to combine separate date and time values into a single Firebase Timestamp.
+ * This is crucial for accurately storing event start times.
+ */
 private fun combineDateAndTime(
     dateMillis: Long?,
     hour: Int?,
@@ -338,6 +417,7 @@ private fun combineDateAndTime(
         return null
     }
 
+    // Use a Calendar instance to correctly assemble the date and time.
     val calendar = Calendar.getInstance().apply {
         timeInMillis = dateMillis
 
@@ -353,7 +433,9 @@ private fun combineDateAndTime(
     return Timestamp(calendar.time)
 }
 
-//  Helper Composable for Time Picker
+/**
+ * A custom date picker dialog.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimePickerDialog(
