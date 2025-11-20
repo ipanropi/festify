@@ -14,11 +14,13 @@ import java.util.Locale
 import javax.inject.Inject
 import android.net.Uri
 import kotlin.jvm.optionals.getOrNull
+import com.cs407.festify.data.repository.StorageRepository
 
 
 @HiltViewModel
 class MyEventsViewModel @Inject constructor(
-    private val eventRepository: EventRepository
+    private val eventRepository: EventRepository,
+    private val storageRepository: StorageRepository
 ) : ViewModel() {
 
     private val _myEvents = MutableStateFlow<List<Event>>(emptyList())
@@ -45,6 +47,28 @@ class MyEventsViewModel @Inject constructor(
         }
     }
 
+    fun deleteEvent(event: Event) {
+        viewModelScope.launch {
+            // 1. Optimistic UI Update: Remove the event from the local list immediately.
+            // This makes the app feel instantaneous to the user.
+            _myEvents.value = _myEvents.value.filter { it.id != event.id }
+
+            // 2. Call the repository to delete the event from the backend.
+            // You already created this function in your repository.
+            val result = eventRepository.deleteEvent(event.id)
+
+            // 3. (Optional but good practice) Handle failure.
+            // If the deletion fails on the server, add the event back to the list
+            // to keep the UI consistent with the backend.
+            if (result.isFailure) {
+                println("Error deleting event, rolling back UI change: ${result.exceptionOrNull()?.message}")
+                // The real-time listener from observeMyEvents() would likely fix this automatically,
+                // but this is a good defensive measure.
+                _myEvents.value = (_myEvents.value + event).sortedByDescending { it.startDateTime }
+            }
+        }
+    }
+
 
         fun createEvent(
             title: String,
@@ -65,7 +89,7 @@ class MyEventsViewModel @Inject constructor(
 
                     val imageUrl = if (imageUri != null) {
                         // An image was selected, try to upload it.
-                        val uploadResult = eventRepository.uploadEventImage(imageUri)
+                        val uploadResult = storageRepository.uploadEventImage(imageUri)
                         if (uploadResult.isSuccess) {
                             uploadResult.getOrNull() ?: DEFAULT_EVENT_IMAGE_URL // Use placeholder on strange null success
                         } else {
