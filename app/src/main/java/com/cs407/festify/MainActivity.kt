@@ -144,7 +144,7 @@ fun FestifyApp() {
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
                 ChatScreen(eventName = eventId.replace("_", " ").replaceFirstChar { it.uppercase() })
             }
-            composable(Screen.MyEvents.route) { MyEventsScreen() }
+            composable(Screen.MyEvents.route) { MyEventsScreen(navController = navController) }
             composable(Screen.Profile.route) { ProfileScreen() }
             composable("event/{eventId}") { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId")!!
