@@ -6,11 +6,6 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.auth
 import com.google.firebase.auth.userProfileChangeRequest
 
-
-// ============================================
-// Email Validation
-// ============================================
-
 enum class EmailResult {
     Valid,
     Empty,
@@ -28,10 +23,6 @@ fun validateEmail(email: String): EmailResult {
         EmailResult.Invalid
     }
 }
-
-// ============================================
-// Password Validation
-// ============================================
 
 enum class PasswordResult {
     Valid,
@@ -55,10 +46,6 @@ fun validatePassword(password: String): PasswordResult {
     }
     return PasswordResult.Invalid
 }
-
-// ============================================
-// Firebase Authentication Functions
-// ============================================
 
 /**
  * Sign in existing user with email and password

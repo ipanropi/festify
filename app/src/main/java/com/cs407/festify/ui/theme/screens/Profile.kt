@@ -2,6 +2,7 @@ package com.cs407.festify.ui.screens
 
 import android.graphics.drawable.Icon
 import android.media.Image
+import com.google.firebase.auth.FirebaseAuth
 import android.util.Patterns
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -41,7 +42,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cs407.festify.ui.theme.LocalDarkMode
 
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel = viewModel()) {
+fun ProfileScreen(
+    viewModel: ProfileViewModel = viewModel(),
+    onLogout: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
     val darkMode = LocalDarkMode.current
@@ -243,6 +247,25 @@ fun ProfileScreen(viewModel: ProfileViewModel = viewModel()) {
                     }
                 }
             }
+        }
+        //Log out button
+        Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = {
+                FirebaseAuth.getInstance().signOut()
+                onLogout()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 32.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            )
+        ) {
+            Text("Log Out", fontWeight = FontWeight.SemiBold)
         }
     }
 

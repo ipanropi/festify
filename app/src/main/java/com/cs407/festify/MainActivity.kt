@@ -56,7 +56,12 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalDarkMode provides darkModeState) {
                 FestifyTheme {
                     if (isLoggedIn) {
-                        FestifyApp()
+                        FestifyApp(
+                            onLogout = {
+                                FirebaseAuth.getInstance().signOut()
+                                isLoggedIn = false
+                            }
+                        )
                     } else {
                         LoginScreen(
                             onLoginSuccess = { isLoggedIn = true }
@@ -69,7 +74,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun FestifyApp() {
+fun FestifyApp(onLogout: () -> Unit) {
     val navController = rememberNavController()
 
     val items = listOf(
@@ -78,7 +83,6 @@ fun FestifyApp() {
         Screen.Chat,
         Screen.Profile
     )
-
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -129,7 +133,7 @@ fun FestifyApp() {
                 ChatScreen(eventName = eventId.replace("_", " ").replaceFirstChar { it.uppercase() })
             }
             composable(Screen.MyEvents.route) { MyEventsScreen() }
-            composable(Screen.Profile.route) { ProfileScreen() }
+            composable(Screen.Profile.route) { ProfileScreen(onLogout = onLogout) }
             composable("event/{eventId}") { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId")!!
                 EventDetailsScreen(eventId, navController)
