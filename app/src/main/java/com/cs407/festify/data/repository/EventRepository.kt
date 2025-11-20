@@ -407,28 +407,7 @@ class EventRepository @Inject constructor(
         }
     }
 
-    suspend fun uploadEventImage(imageUri: Uri): Result<String> {
-        // Get a reference to Firebase Storage
-        val storage = Firebase.storage
-        return try {
-            val userId = currentUserId
-                ?: return Result.failure(Exception("Cannot upload image: User not signed in."))
 
-            // Create a unique file name to prevent overwrites
-            val fileName = "event_images/${userId}_${System.currentTimeMillis()}.jpg"
-            val imageRef = storage.reference.child(fileName)
-
-            // 1. Upload the file from the local Uri
-            imageRef.putFile(imageUri).await()
-
-            // 2. Get the public download URL for the uploaded file
-            val downloadUrl = imageRef.downloadUrl.await().toString()
-
-            Result.success(downloadUrl)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
 
 }
 

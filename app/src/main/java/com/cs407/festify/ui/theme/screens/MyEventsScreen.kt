@@ -50,7 +50,11 @@ import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.activity.result.launch
 import androidx.compose.ui.graphics.vector.path
 import android.provider.MediaStore.Audio.Media
+import androidx.compose.foundation.background
 import androidx.navigation.NavController
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Delete
+
 
 /**
  * MyEventsScreen is a stateful composable that displays the events created by the current user.
@@ -127,9 +131,27 @@ fun MyEventsScreen(
                             // Navigate to the event details screen when a card is clicked
                             navController.navigate("event/$id")
                         }
+
+                        IconButton(
+                            onClick = {
+                                // Call the ViewModel's delete function when clicked
+                                viewModel.deleteEvent(event)
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd) // Position it at the top-right
+                                .padding(8.dp) // Give it some space from the edges
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape) // Make it look good
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Event",
+                                tint = Color.White // Make the icon white so it's visible
+                            )
+                        }
+                    }
                     }
                 }
-            }
+
 
             // Show the CreateEventDialog if showCreateEventDialog is true
             if (showCreateEventDialog) {
