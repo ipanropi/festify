@@ -1,14 +1,10 @@
 package com.cs407.festify.ui.theme.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -16,13 +12,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.rememberAsyncImagePainter
-import com.cs407.festify.data.model.Event
 import com.cs407.festify.ui.viewmodels.MyEventsViewModel
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.DateRange
@@ -33,9 +25,7 @@ import androidx.compose.material.icons.outlined.Style
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.geometry.isEmpty
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.google.firebase.Timestamp
@@ -47,13 +37,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
-import androidx.activity.result.launch
-import androidx.compose.ui.graphics.vector.path
-import android.provider.MediaStore.Audio.Media
 import androidx.compose.foundation.background
 import androidx.navigation.NavController
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Delete
+import com.cs407.festify.data.model.Event
+
 
 
 /**
@@ -72,8 +61,11 @@ fun MyEventsScreen(
     // --- STATE MANAGEMENT ---
     var showCreateEventDialog by remember { mutableStateOf(false) }
 
+
     // Observe the list of events from the ViewModel
     val myEvents by viewModel.myEvents.collectAsState()
+
+    var eventToDelete by remember {mutableStateOf<Event?>(null)}
 
 
     // --- UI ---
@@ -127,30 +119,57 @@ fun MyEventsScreen(
                 } else {
                     // Display the list of events
                     items(myEvents) { event ->
-                        EventCard(event) { id ->
-                            // Navigate to the event details screen when a card is clicked
-                            navController.navigate("event/$id")
-                        }
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            EventCard(event) { id ->
+                                // Navigate to the event details screen when a card is clicked
+                                navController.navigate("event/$id")
+                            }
 
-                        IconButton(
-                            onClick = {
-                                // Call the ViewModel's delete function when clicked
-                                viewModel.deleteEvent(event)
-                            },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd) // Position it at the top-right
-                                .padding(8.dp) // Give it some space from the edges
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape) // Make it look good
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete Event",
-                                tint = Color.White // Make the icon white so it's visible
-                            )
+                            IconButton(
+                                onClick = {
+                                    eventToDelete = event
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .background(
+                                        Color.Black.copy(alpha = 0.5f),
+                                        CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Event",
+                                    tint = Color.White // Make the icon white so it's visible
+                                )
+                            }
                         }
-                    }
                     }
                 }
+                }
+
+            eventToDelete?.let { event ->
+                AlertDialog(
+                    onDismissRequest = { eventToDelete = null }, // Dismiss if user clicks outside
+                    title = { Text("Confirm Deletion") },
+                    text = { Text("Are you sure you want to permanently delete the event '${event.title}'?") },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                viewModel.deleteEvent(event) // Call the actual delete function
+                                eventToDelete = null // Close the dialog
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Delete")
+                        }
+                    }, dismissButton = {
+                        TextButton(onClick = { eventToDelete = null }) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
 
 
             // Show the CreateEventDialog if showCreateEventDialog is true

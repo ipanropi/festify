@@ -33,6 +33,7 @@ import com.cs407.festify.ui.theme.screens.EventDetailsScreen
 import com.cs407.festify.ui.theme.screens.LoginScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
+import com.cs407.festify.ui.theme.screens.MyEventsTabScreen
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -144,7 +145,7 @@ fun FestifyApp() {
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
                 ChatScreen(eventName = eventId.replace("_", " ").replaceFirstChar { it.uppercase() })
             }
-            composable(Screen.MyEvents.route) { MyEventsScreen(navController = navController) }
+            composable(Screen.MyEvents.route) { MyEventsTabScreen(navController = navController) }
             composable(Screen.Profile.route) { ProfileScreen() }
             composable("event/{eventId}") { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId")!!
