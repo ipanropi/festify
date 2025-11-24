@@ -67,7 +67,6 @@ fun MyEventsScreen(
 
     var eventToDelete by remember {mutableStateOf<Event?>(null)}
 
-
     // --- UI ---
     Scaffold(
         floatingActionButton = {
@@ -93,7 +92,7 @@ fun MyEventsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
-                    Text("My Events", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Events Hosted", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 }
                 // if event empty show messages to add event
                 if (myEvents.isEmpty()) {

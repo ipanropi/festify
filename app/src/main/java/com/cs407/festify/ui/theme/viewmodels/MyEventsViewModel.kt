@@ -26,6 +26,9 @@ class MyEventsViewModel @Inject constructor(
     private val _myEvents = MutableStateFlow<List<Event>>(emptyList())
     val myEvents: StateFlow<List<Event>> = _myEvents
 
+    private val _joinedEvents = MutableStateFlow<List<Event>>(emptyList())
+    val joinedEvents: StateFlow<List<Event>> = _joinedEvents
+
     companion object {
         private const val DEFAULT_EVENT_IMAGE_URL = "https://firebasestorage.googleapis.com/v0/b/festify-2ab07.firebasestorage.app/o/common-corporate-events.jpg?alt=media&token=0fdd3dd4-f512-4938-8784-e6a2d8ee4dce"
     }
@@ -47,23 +50,17 @@ class MyEventsViewModel @Inject constructor(
         }
     }
 
+
+
+
+
     fun deleteEvent(event: Event) {
         viewModelScope.launch {
-            // 1. Optimistic UI Update: Remove the event from the local list immediately.
-            // This makes the app feel instantaneous to the user.
+
             _myEvents.value = _myEvents.value.filter { it.id != event.id }
-
-            // 2. Call the repository to delete the event from the backend.
-            // You already created this function in your repository.
             val result = eventRepository.deleteEvent(event.id)
-
-            // 3. (Optional but good practice) Handle failure.
-            // If the deletion fails on the server, add the event back to the list
-            // to keep the UI consistent with the backend.
             if (result.isFailure) {
                 println("Error deleting event, rolling back UI change: ${result.exceptionOrNull()?.message}")
-                // The real-time listener from observeMyEvents() would likely fix this automatically,
-                // but this is a good defensive measure.
                 _myEvents.value = (_myEvents.value + event).sortedByDescending { it.startDateTime }
             }
         }

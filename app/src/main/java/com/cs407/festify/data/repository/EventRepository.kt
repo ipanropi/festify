@@ -102,17 +102,18 @@ class EventRepository @Inject constructor(
             .collection(FirestoreCollections.User.RSVPS)
             .whereEqualTo(FirestoreCollections.Fields.RSVP_STATUS, FirestoreCollections.RsvpStatus.ATTENDING)
             .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    trySend(Result.failure(error))
-                    return@addSnapshotListener
-                }
-
-                val eventIds = snapshot?.documents?.mapNotNull {
-                    it.getString(FirestoreCollections.Fields.EVENT_ID)
-                } ?: emptyList()
-
-                trySend(Result.success(eventIds))
+             if (error != null) {
+            trySend(Result.failure(error))
+            return@addSnapshotListener
             }
+
+            val eventIds = snapshot?.documents?.mapNotNull {
+            // FIX: Use 'it.id' to get the document name (which is the Event ID)
+            it.id
+             } ?: emptyList()
+
+             trySend(Result.success(eventIds))
+    }
 
         awaitClose { listener.remove() }
     }
@@ -289,7 +290,7 @@ class EventRepository @Inject constructor(
 
             // Add RSVP to user's profile
             val rsvpData = hashMapOf(
-                FirestoreCollections.Fields.EVENT_ID to eventId,
+                // FirestoreCollections.Fields.EVENT_ID to eventId,
                 FirestoreCollections.Fields.RSVP_STATUS to status,
                 FirestoreCollections.Fields.RSVP_DATE to FieldValue.serverTimestamp()
             )
@@ -305,6 +306,37 @@ class EventRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    fun getUserRsvpStatus(eventId: String): Flow<String?> = callbackFlow {
+        val userId = currentUserId ?: run {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
+
+        // Go to: Users -> [MyID] -> RSVPs -> [EventID]
+        val listener = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection(FirestoreCollections.User.RSVPS)
+            .document(eventId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(null)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    // If we found a document, send the status (e.g. "attending")
+                    val status = snapshot.getString(FirestoreCollections.Fields.RSVP_STATUS)
+                    trySend(status)
+                } else {
+                    // If no document exists, I am not attending
+                    trySend("not_attending")
+                }
+            }
+
+        awaitClose { listener.remove() }
     }
 
     /**
