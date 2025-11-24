@@ -3,8 +3,10 @@ package com.cs407.festify.ui.theme.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
@@ -34,6 +36,7 @@ fun EventDetailsScreen(
     viewModel: EventDetailsViewModel = hiltViewModel()
 ) {
     val event by viewModel.event.collectAsState()
+    val rsvpStatus by viewModel.userRsvpStatus.collectAsState()
 
     // load only once
     LaunchedEffect(eventId) {
@@ -48,8 +51,10 @@ fun EventDetailsScreen(
     }
 
     Scaffold { innerPadding ->
-        Column(Modifier.padding(innerPadding)) {
-            EventDetailsContent(event!!, navController)
+        Column(Modifier
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState())) {
+            EventDetailsContent(event!!, navController, viewModel, rsvpStatus)
         }
     }
 }
@@ -60,10 +65,13 @@ fun EventDetailsScreen(
 @Composable
 fun EventDetailsContent(
     event: Event,
-    navController: NavController
+    navController: NavController,
+    viewModel: EventDetailsViewModel,
+    rsvpStatus: String
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Chat", "Map", "Photos")
+    Column {
 
     // ===== PARENT STACK FOR IMAGE + BACK BUTTON =====
     Box {
@@ -131,19 +139,21 @@ fun EventDetailsContent(
         Spacer(Modifier.height(12.dp))
 
         Text(event.description)
-
         Spacer(Modifier.height(16.dp))
 
+        val isAttending = rsvpStatus == "attending"
+
         Button(
-            onClick = { /* RSVP later */ },
+            onClick = { viewModel.toggleRsvp(event.id) }, // Call toggle instead of rsvpToEvent
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8EB7FF) // Light Blue
+                containerColor = if (isAttending) Color(0xFFFF6B6B) else Color(0xFF2196F3)
             ),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Going")
+            Text(if (isAttending) "Not Going (Cancel)" else "Going")
         }
+
 
         Spacer(Modifier.height(16.dp))
 
@@ -177,6 +187,7 @@ fun EventDetailsContent(
             }
         }
 
+
         Spacer(Modifier.height(16.dp))
 
         // ===== TAB CONTENTS =====
@@ -185,6 +196,7 @@ fun EventDetailsContent(
             1 -> MapTabUI()
             2 -> PhotosTabUI()
         }
+    }
     }
 }
 

@@ -1,24 +1,20 @@
 package com.cs407.festify.data.repository
 
-import android.net.Uri
 import com.cs407.festify.data.model.Attendee
 import com.cs407.festify.data.model.Event
 import com.cs407.festify.data.remote.FirestoreCollections
-import com.google.firebase.Firebase
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
-import com.google.firebase.storage.storage
-import kotlinx.coroutines.tasks.await
-
 
 
 /**
@@ -106,17 +102,18 @@ class EventRepository @Inject constructor(
             .collection(FirestoreCollections.User.RSVPS)
             .whereEqualTo(FirestoreCollections.Fields.RSVP_STATUS, FirestoreCollections.RsvpStatus.ATTENDING)
             .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    trySend(Result.failure(error))
-                    return@addSnapshotListener
-                }
-
-                val eventIds = snapshot?.documents?.mapNotNull {
-                    it.getString(FirestoreCollections.Fields.EVENT_ID)
-                } ?: emptyList()
-
-                trySend(Result.success(eventIds))
+             if (error != null) {
+            trySend(Result.failure(error))
+            return@addSnapshotListener
             }
+
+            val eventIds = snapshot?.documents?.mapNotNull {
+            // FIX: Use 'it.id' to get the document name (which is the Event ID)
+            it.id
+             } ?: emptyList()
+
+             trySend(Result.success(eventIds))
+    }
 
         awaitClose { listener.remove() }
     }
@@ -293,7 +290,7 @@ class EventRepository @Inject constructor(
 
             // Add RSVP to user's profile
             val rsvpData = hashMapOf(
-                FirestoreCollections.Fields.EVENT_ID to eventId,
+                // FirestoreCollections.Fields.EVENT_ID to eventId,
                 FirestoreCollections.Fields.RSVP_STATUS to status,
                 FirestoreCollections.Fields.RSVP_DATE to FieldValue.serverTimestamp()
             )
@@ -309,6 +306,37 @@ class EventRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    fun getUserRsvpStatus(eventId: String): Flow<String?> = callbackFlow {
+        val userId = currentUserId ?: run {
+            trySend(null)
+            close()
+            return@callbackFlow
+        }
+
+        // Go to: Users -> [MyID] -> RSVPs -> [EventID]
+        val listener = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection(FirestoreCollections.User.RSVPS)
+            .document(eventId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(null)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    // If we found a document, send the status (e.g. "attending")
+                    val status = snapshot.getString(FirestoreCollections.Fields.RSVP_STATUS)
+                    trySend(status)
+                } else {
+                    // If no document exists, I am not attending
+                    trySend("not_attending")
+                }
+            }
+
+        awaitClose { listener.remove() }
     }
 
     /**
@@ -380,6 +408,54 @@ class EventRepository @Inject constructor(
             }
 
         awaitClose { listener.remove() }
+    }
+
+    /**
+     * Get the full Event objects for events the user is attending.
+     * This function CHAINS together two operations:
+     * 1. It calls `getAttendingEvents()` to get the list of event IDs.
+     * 2. It then uses those IDs to fetch the full Event details.
+     */
+    fun getAttendingEventsDetails(): Flow<Result<List<Event>>> {
+        return getAttendingEvents().flatMapLatest { idResult ->
+
+            if (idResult.isFailure) {
+                return@flatMapLatest callbackFlow {
+                    trySend(Result.failure(idResult.exceptionOrNull()!!))
+                    close()
+                }
+            }
+
+            val eventIds = idResult.getOrNull()
+
+            if (eventIds.isNullOrEmpty()) {
+                return@flatMapLatest callbackFlow {
+                    trySend(Result.success(emptyList()))
+                    close()
+                }
+            }
+
+            callbackFlow {
+                val listener = firestore.collection(FirestoreCollections.EVENTS)
+                    .whereIn(FieldPath.documentId(), eventIds)
+                    .addSnapshotListener { snapshot, error ->
+                        if (error != null) {
+                            trySend(Result.failure(error))
+                            return@addSnapshotListener
+                        }
+
+                        // Convert the documents to Event objects, same as in your other functions.
+                        val events = snapshot?.documents?.mapNotNull {
+                            it.toObject(Event::class.java)
+                        } ?: emptyList()
+
+                        trySend(Result.success(events))
+                    }
+
+                // Clean up the listener when the flow is cancelled.
+                awaitClose { listener.remove() }
+            }
+        }
     }
 
     /**
