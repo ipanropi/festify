@@ -31,7 +31,8 @@ data class Event(
     val endDateTime: Timestamp? = null,
     val category: String = "",
     val isPublic: Boolean = true,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    val vouchCount: Int = 0
 )
 
 /**
