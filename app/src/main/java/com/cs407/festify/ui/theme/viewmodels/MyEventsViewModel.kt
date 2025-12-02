@@ -135,4 +135,84 @@ class MyEventsViewModel @Inject constructor(
                 }
             }
         }
+
+    fun updateEvent(
+        eventId: String,
+        title: String,
+        description: String,
+        location: String,
+        startDateTime: Timestamp,
+        maxAttendees: Int,
+        tags: List<String>,
+        imageUri: Uri?
+    ) {
+        viewModelScope.launch {
+            println("--- STARTING UPDATE ---")
+            try {
+                // 1. Prepare the base updates (text fields)
+                val updates = mutableMapOf<String, Any>(
+                    "title" to title,
+                    "description" to description,
+                    "location" to location,
+                    "startDateTime" to startDateTime,
+                    "date" to SimpleDateFormat("MMM dd, yyyy", Locale.US).format(startDateTime.toDate()),
+                    "time" to SimpleDateFormat("h:mm a", Locale.US).format(startDateTime.toDate()),
+                    "maxAttendees" to maxAttendees,
+                    "tags" to tags
+                )
+
+                // 2. Handle Image Upload (only if a NEW image was selected)
+                if (imageUri != null) {
+                    println("--- UPLOADING IMAGE... (This might take time) ---")
+                    val uploadResult = storageRepository.uploadEventImage(imageUri)
+                    if (uploadResult.isSuccess) {
+                        val newImageUrl = uploadResult.getOrNull()
+                        println("--- IMAGE UPLOAD SUCCESS! URL: $newImageUrl ---")
+                        if (newImageUrl != null) {
+                            updates["imageUrl"] = newImageUrl
+                        }
+                    } else {
+                        println("Failed to upload new image: ${uploadResult.exceptionOrNull()?.message}")
+
+
+                    }
+                }
+
+                println("--- UPDATING FIRESTORE DATABASE... ---")
+
+                // 3. Send updates to Firestore
+                val result = eventRepository.updateEvent(eventId, updates)
+
+                if (result.isSuccess) {
+                    println("Event updated successfully")
+                    // Refresh the list to reflect changes
+                    observeMyEvents()
+                } else {
+                    println("Update failed: ${result.exceptionOrNull()?.message}")
+                    println("--- DATABASE ERROR: ${result.exceptionOrNull()?.message} ---")
+                }
+            } catch (e: Exception) {
+                println("Exception updating event: ${e.message}")
+            }
+        }
+    }
+
+    fun cancelEvent(event: Event) {
+        // Optimistic Update
+        val updatedEvent = event.copy(status = "cancelled")
+        _myEvents.value = _myEvents.value.map {
+            if (it.id == event.id) updatedEvent else it
+        }
+
+        viewModelScope.launch {
+            // We reuse your existing update logic!
+            val updates = mapOf("status" to "cancelled")
+            val result = eventRepository.updateEvent(event.id, updates)
+
+            if (result.isFailure) {
+                // Revert on failure
+                observeMyEvents()
+            }
+        }
+    }
     }

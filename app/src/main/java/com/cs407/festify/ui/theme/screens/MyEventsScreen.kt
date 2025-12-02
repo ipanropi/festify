@@ -12,12 +12,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -27,6 +30,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.cs407.festify.data.model.Event
 import com.cs407.festify.ui.theme.screens.components.SmartEventList
+import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
 import com.cs407.festify.ui.viewmodels.MyEventsViewModel
 import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
@@ -41,67 +45,162 @@ import java.util.*
 @Composable
 fun MyEventsScreen(
     viewModel: MyEventsViewModel = hiltViewModel(),
-    navController: NavController
+    navController: NavController,
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
-    // --- STATE & OBSERVERS ---
+    // --- STATE ---
     var showCreateEventDialog by remember { mutableStateOf(false) }
     var eventToDelete by remember { mutableStateOf<Event?>(null) }
-    val myEvents by viewModel.myEvents.collectAsState()
 
-    // --- UI STRUCTURE ---
+    var eventToEdit by remember { mutableStateOf<Event?>(null) }
+
+    val myEvents by viewModel.myEvents.collectAsState()
+    val context = LocalContext.current
+
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateEventDialog = true }) {
+            FloatingActionButton(onClick = {
+                eventToEdit = null // Ensure we are in "Create" mode
+                showCreateEventDialog = true
+            }) {
                 Icon(Icons.Filled.Add, "Add")
             }
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
-
-            // Using SmartEventList
             SmartEventList(
                 events = myEvents,
                 onEventClick = { id -> navController.navigate("event/$id") },
                 headerContent = {
                     item { Text("Events Hosted", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
                 },
+                // Custom Overlay with EDIT and DELETE buttons
                 cardOverlay = { event ->
-                    // Delete Button Logic
-                    IconButton(
-                        onClick = { eventToDelete = event },
-                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
                     ) {
-                        Icon(Icons.Default.Delete, "Delete", tint = Color.White)
+                        // --- EDIT BUTTON ---
+                        IconButton(
+                            onClick = {
+                                eventToEdit = event // Set the event to pre-fill
+                                showCreateEventDialog = true
+                            },
+                            modifier = Modifier
+                                .padding(end = 8.dp) // Space between buttons
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+
+                        // --- DELETE BUTTON ---
+                        IconButton(
+                            onClick = { eventToDelete = event },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
                     }
+                },
+                onReportSubmit = { eventId, reason ->
+                    detailsViewModel.reportEvent(eventId, reason, context)
                 }
             )
         }
 
-        // --- DIALOGS (Create & Delete) ---
+        // --- SMART DELETE DIALOG ---
         if (eventToDelete != null) {
+            val hasAttendees = eventToDelete!!.attendees > 0
+
             AlertDialog(
                 onDismissRequest = { eventToDelete = null },
-                title = { Text("Confirm Deletion") },
-                text = { Text("Are you sure you want to delete '${eventToDelete?.title}'?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            eventToDelete?.let { viewModel.deleteEvent(it) }
-                            eventToDelete = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Delete") }
+                icon = { Icon(Icons.Default.Warning, contentDescription = null) },
+                title = {
+                    Text(
+                        text = if (hasAttendees) "Active Event Warning" else "Confirm Deletion",
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 },
-                dismissButton = { TextButton(onClick = { eventToDelete = null }) { Text("Cancel") } }
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (hasAttendees) {
+                            Text("This event has ${eventToDelete!!.attendees} attendee(s).")
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Deleting it will remove it from their app without notice.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        } else {
+                            Text("Are you sure you want to permanently delete '${eventToDelete!!.title}'?")
+                        }
+                    }
+                },
+                // We use a Column to stack buttons neatly in the middle
+                confirmButton = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+
+                        if (hasAttendees) {
+                            FilledTonalButton(
+                                onClick = {
+                                    eventToDelete?.let { viewModel.cancelEvent(it) }
+                                    eventToDelete = null
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Mark as 'Cancelled'")
+                            }
+                        }
+
+
+                        Button(
+                            onClick = {
+                                eventToDelete?.let { viewModel.deleteEvent(it) }
+                                eventToDelete = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (hasAttendees) "Delete Anyway" else "Delete Event")
+                        }
+
+
+                        TextButton(
+                            onClick = { eventToDelete = null },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Close")
+                        }
+                    }
+                }
+
             )
         }
 
         if (showCreateEventDialog) {
             CreateEventDialog(
-                onDismiss = { showCreateEventDialog = false },
-                onCreateEvent = { title, desc, loc, time, max, tags, uri ->
-                    viewModel.createEvent(title, desc, loc, time, max, tags, uri)
+                onDismiss = {
                     showCreateEventDialog = false
+                    eventToEdit = null // Reset so next time it opens empty
+                },
+                eventToEdit = eventToEdit, // Pass the event to pre-fill the form!
+                onCreateEvent = { title, desc, loc, time, max, tags, uri ->
+                    if (eventToEdit == null) {
+                        // CREATE MODE
+                        viewModel.createEvent(title, desc, loc, time, max, tags, uri)
+                    } else {
+                        // EDIT MODE
+                        viewModel.updateEvent(eventToEdit!!.id, title, desc, loc, time, max, tags, uri)
+                    }
+                    showCreateEventDialog = false
+                    eventToEdit = null
                 }
             )
         }
@@ -114,9 +213,12 @@ fun MyEventsScreen(
 @Composable
 fun JoinedEventsScreen(
     navController: NavController,
-    viewModel: JoinedEventsViewModel = hiltViewModel()
+    viewModel: JoinedEventsViewModel = hiltViewModel(),
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
     val joinedEvents by viewModel.joinedEvents.collectAsState()
+    val context = LocalContext.current
+
 
     SmartEventList(
         events = joinedEvents,
@@ -125,6 +227,9 @@ fun JoinedEventsScreen(
             item {
                 Text("Events Joined", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
+        },
+        onReportSubmit = { eventId, reason ->
+            detailsViewModel.reportEvent(eventId, reason, context)
         }
     )
 }
@@ -144,15 +249,17 @@ fun CreateEventDialog(
         startDateTime: Timestamp,
         maxAttendees: Int,
         tags: List<String>,
-        imageUri: Uri?
-    ) -> Unit
+        imageUri: Uri?,
+
+    ) -> Unit,
+    eventToEdit: Event? = null,
 ) {
     // --- Form States ---
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var maxAttendees by remember { mutableStateOf("") }
-    var tags by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
+    var description by remember { mutableStateOf(eventToEdit?.description ?: "") }
+    var location by remember { mutableStateOf(eventToEdit?.location ?: "") }
+    var maxAttendees by remember { mutableStateOf(eventToEdit?.maxAttendees?.toString() ?: "") }
+    var tags by remember { mutableStateOf(eventToEdit?.tags?.joinToString(", ") ?: "") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -160,14 +267,37 @@ fun CreateEventDialog(
         onResult = { uri -> imageUri = uri }
     )
 
-    // --- Date/Time Picker States ---
-    val datePickerState = rememberDatePickerState()
+    // --- Date/Time Logic (Critical Fix) ---
+    // 1. Get initial timestamp from event, or null
+    val initialTimestamp = eventToEdit?.startDateTime?.toDate()
+
+    // 2. Initialize DatePicker state
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialTimestamp?.time
+    )
+    var selectedDateMillis by remember { mutableStateOf(initialTimestamp?.time) }
+
+    // 3. Initialize Time state
+    // We need to extract hour/minute from the timestamp if it exists
+    val initialCalendar = remember(initialTimestamp) {
+        if (initialTimestamp != null) {
+            Calendar.getInstance().apply { time = initialTimestamp }
+        } else {
+            null
+        }
+    }
+
+    var selectedTimeHour by remember { mutableStateOf(initialCalendar?.get(Calendar.HOUR_OF_DAY)) }
+    var selectedTimeMinute by remember { mutableStateOf(initialCalendar?.get(Calendar.MINUTE)) }
+
+    // Dialog States
     var showDatePicker by remember { mutableStateOf(false) }
-    val timePickerState = rememberTimePickerState()
+    val timePickerState = rememberTimePickerState(
+        initialHour = selectedTimeHour ?: 0,
+        initialMinute = selectedTimeMinute ?: 0,
+        is24Hour = false
+    )
     var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDateMillis by remember { mutableStateOf<Long?>(null) }
-    var selectedTimeHour by remember { mutableStateOf<Int?>(null) }
-    var selectedTimeMinute by remember { mutableStateOf<Int?>(null) }
 
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
     val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.US) }
