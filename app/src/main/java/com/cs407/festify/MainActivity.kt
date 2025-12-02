@@ -29,7 +29,6 @@ import com.cs407.festify.ui.theme.screens.MyEventsScreen
 import com.cs407.festify.ui.theme.screens.HomeScreen
 import com.cs407.festify.ui.theme.screens.ChatListScreen
 import com.cs407.festify.ui.theme.screens.ChatScreen
-import com.cs407.festify.ui.theme.screens.EventDetailsScreen
 import com.cs407.festify.ui.theme.screens.LoginScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
@@ -37,6 +36,8 @@ import com.cs407.festify.ui.theme.screens.MyEventsTabScreen
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import com.cs407.festify.ui.theme.screens.EventDetailsScreen
+
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -147,9 +148,16 @@ fun FestifyApp() {
             }
             composable(Screen.MyEvents.route) { MyEventsTabScreen(navController = navController) }
             composable(Screen.Profile.route) { ProfileScreen() }
-            composable("event/{eventId}") { backStackEntry ->
-                val eventId = backStackEntry.arguments?.getString("eventId")!!
-                EventDetailsScreen(eventId, navController)
+            composable(
+                route = "event/{eventId}",
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
+
+                EventDetailsScreen(
+                    eventId = eventId,
+                    navController = navController
+                )
             }
         }
     }

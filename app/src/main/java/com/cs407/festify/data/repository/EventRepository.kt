@@ -484,6 +484,43 @@ class EventRepository @Inject constructor(
     }
 
 
+    // Check if current user has vouched for this event
+    fun hasUserVouched(eventId: String): Flow<Boolean> = callbackFlow {
+        val userId = currentUserId ?: run { trySend(false); close(); return@callbackFlow }
+
+        val docRef = firestore.collection(FirestoreCollections.EVENTS)
+            .document(eventId)
+            .collection("vouches") // Sub-collection to track who vouched
+            .document(userId)
+
+        val listener = docRef.addSnapshotListener { snapshot, _ ->
+            trySend(snapshot != null && snapshot.exists())
+        }
+        awaitClose { listener.remove() }
+    }
+
+    // Toggle Vouch (Like/Unlike)
+    suspend fun toggleVouch(eventId: String) {
+        val userId = currentUserId ?: return
+        val eventRef = firestore.collection(FirestoreCollections.EVENTS).document(eventId)
+        val vouchRef = eventRef.collection("vouches").document(userId)
+
+        firestore.runTransaction { transaction ->
+            val snapshot = transaction.get(vouchRef)
+
+            if (snapshot.exists()) {
+                // User already vouched -> Remove vouch (Unlike)
+                transaction.delete(vouchRef)
+                transaction.update(eventRef, "vouchCount", FieldValue.increment(-1))
+            } else {
+                // New vouch -> Add vouch (Like)
+                transaction.set(vouchRef, mapOf("timestamp" to FieldValue.serverTimestamp()))
+                transaction.update(eventRef, "vouchCount", FieldValue.increment(1))
+            }
+        }.await()
+    }
+
+
 
 }
 
