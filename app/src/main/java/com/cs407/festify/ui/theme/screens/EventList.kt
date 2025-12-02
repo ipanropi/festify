@@ -143,7 +143,7 @@ fun EventCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        StatusTag(event.status)
+                        StatusTag(event.computedStatus)
                         if (event.userRsvp == "attending") {
                             AssistChip(
                                 onClick = {},

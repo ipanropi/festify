@@ -29,29 +29,27 @@ class EventDetailsViewModel @Inject constructor(
     private val _userRsvpStatus = MutableStateFlow<String>("not_attending")
     val userRsvpStatus: StateFlow<String> = _userRsvpStatus.asStateFlow()
 
-    private val _isVouched = MutableStateFlow(false)
-    val isVouched: StateFlow<Boolean> = _isVouched.asStateFlow()
+    private val _isVouched = MutableStateFlow<Boolean?>(null)
+    val isVouched: StateFlow<Boolean?> = _isVouched.asStateFlow()
 
     fun loadEvent(eventId: String) {
-        viewModelScope.launch {
-            // 1. Load Event Data
-            val result = repository.getEvent(eventId)
-            if (result.isSuccess) {
-                _event.value = result.getOrNull()
-            }
 
-            // 2. Start listening to the RSVP status
+        viewModelScope.launch {
+            val result = repository.getEvent(eventId)
+            if (result.isSuccess) _event.value = result.getOrNull()
+        }
+
+
+        viewModelScope.launch {
             repository.getUserRsvpStatus(eventId).collect { status ->
                 _userRsvpStatus.value = status ?: "not_attending"
             }
+        }
 
-            // 3. Check if I vouched
+
+        viewModelScope.launch {
             repository.hasUserVouched(eventId).collect { vouched ->
-                // ONLY update if the UI isn't already "ahead" of the server
-                // This prevents the "reset to 0" flicker
-                if (_isVouched.value != vouched) {
-                    _isVouched.value = vouched
-                }
+                _isVouched.value = vouched
             }
         }
     }
@@ -72,35 +70,29 @@ class EventDetailsViewModel @Inject constructor(
             }
         }
 
-        fun toggleVouch(eventId: String) {
-            // 1. Get current snapshot
-            val currentEvent = _event.value ?: return
-            val wasVouched = _isVouched.value
-            val currentCount = currentEvent.vouchCount
+    fun toggleVouch(eventId: String) {
+        val wasVouched = _isVouched.value ?: return
 
-            // 2. Calculate target state logic
-            val newVouchedState = !wasVouched
-            val newCount = if (newVouchedState) {
-                currentCount + 1
-            } else {
-                maxOf(0, currentCount - 1)
-            }
+        val currentEvent = _event.value ?: return
+        val currentCount = currentEvent.vouchCount
 
-            // 3. INSTANT UI UPDATE (Optimistic)
-            // This makes the star turn Gold instantly and the number change instantly.
-            _isVouched.value = newVouchedState
-            _event.value = currentEvent.copy(vouchCount = newCount)
+        val newVouchedState = !wasVouched
+        val newCount = if (newVouchedState) currentCount + 1 else maxOf(0, currentCount - 1)
 
-            // 4. Send to Server in Background
-            viewModelScope.launch {
-                try {
-                    repository.toggleVouch(eventId)
-                } catch (e: Exception) {
-                    _isVouched.value = wasVouched
-                    _event.value = currentEvent.copy(vouchCount = currentCount)
-                }
+        // 4. Optimistic Update
+        _isVouched.value = newVouchedState
+        _event.value = currentEvent.copy(vouchCount = newCount)
+
+        viewModelScope.launch {
+            try {
+                repository.toggleVouch(eventId)
+            } catch (e: Exception) {
+                // Revert on error
+                _isVouched.value = wasVouched
+                _event.value = currentEvent.copy(vouchCount = currentCount)
             }
         }
+    }
 
     fun reportEvent(eventId: String, reason: String, context: Context) {
         viewModelScope.launch {
