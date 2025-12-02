@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -27,6 +28,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.cs407.festify.data.model.Event
 import com.cs407.festify.ui.theme.screens.components.SmartEventList
+import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
 import com.cs407.festify.ui.viewmodels.MyEventsViewModel
 import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
@@ -41,12 +43,15 @@ import java.util.*
 @Composable
 fun MyEventsScreen(
     viewModel: MyEventsViewModel = hiltViewModel(),
-    navController: NavController
+    navController: NavController,
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
     // --- STATE & OBSERVERS ---
     var showCreateEventDialog by remember { mutableStateOf(false) }
     var eventToDelete by remember { mutableStateOf<Event?>(null) }
     val myEvents by viewModel.myEvents.collectAsState()
+    val context = LocalContext.current
+
 
     // --- UI STRUCTURE ---
     Scaffold(
@@ -73,7 +78,12 @@ fun MyEventsScreen(
                     ) {
                         Icon(Icons.Default.Delete, "Delete", tint = Color.White)
                     }
+
+                },
+                onReportSubmit = { eventId, reason ->
+                    detailsViewModel.reportEvent(eventId, reason, context)
                 }
+
             )
         }
 
@@ -114,9 +124,12 @@ fun MyEventsScreen(
 @Composable
 fun JoinedEventsScreen(
     navController: NavController,
-    viewModel: JoinedEventsViewModel = hiltViewModel()
+    viewModel: JoinedEventsViewModel = hiltViewModel(),
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
     val joinedEvents by viewModel.joinedEvents.collectAsState()
+    val context = LocalContext.current
+
 
     SmartEventList(
         events = joinedEvents,
@@ -125,6 +138,9 @@ fun JoinedEventsScreen(
             item {
                 Text("Events Joined", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
+        },
+        onReportSubmit = { eventId, reason ->
+            detailsViewModel.reportEvent(eventId, reason, context)
         }
     )
 }

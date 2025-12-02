@@ -227,7 +227,7 @@ fun EventDetailsContent(
         ReportDialog(
             onDismiss = { showReportDialog = false },
             onSubmit = { reason ->
-                // viewModel.reportEvent(event.id, reason)
+                 viewModel.reportEvent(event.id, reason, context)
                 showReportDialog = false
             }
         )

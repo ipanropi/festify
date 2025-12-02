@@ -520,6 +520,28 @@ class EventRepository @Inject constructor(
         }.await()
     }
 
+    // In data/repository/EventRepository.kt
+
+    suspend fun reportEvent(eventId: String, reason: String): Result<Unit> {
+        return try {
+            val report = hashMapOf(
+                "eventId" to eventId,
+                "reporterId" to (auth.currentUser?.uid ?: "anonymous"),
+                "reason" to reason,
+                "timestamp" to FieldValue.serverTimestamp(),
+                "status" to "pending" // Admins can filter by this later
+            )
+
+            // Create a new collection called "reports" automatically
+            firestore.collection("reports").add(report).await()
+            Result.success(Unit)
+
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
 
 
 }

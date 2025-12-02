@@ -1,5 +1,8 @@
 package com.cs407.festify.ui.theme.viewmodels
 
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cs407.festify.data.model.Event
@@ -16,6 +19,9 @@ import javax.inject.Inject
 class EventDetailsViewModel @Inject constructor(
     private val repository: EventRepository
 ) : ViewModel() {
+    //val context = LocalContext.current
+
+
 
     private val _event = MutableStateFlow<Event?>(null)
     val event: StateFlow<Event?> = _event.asStateFlow()
@@ -95,4 +101,16 @@ class EventDetailsViewModel @Inject constructor(
                 }
             }
         }
+
+    fun reportEvent(eventId: String, reason: String, context: Context) {
+        viewModelScope.launch {
+            val result = repository.reportEvent(eventId, reason)
+            if (result.isSuccess) {
+                println("Report submitted successfully")
+                Toast.makeText(context, "Report submitted successfully", Toast.LENGTH_SHORT).show()
+            } else {
+                println("Failed to submit report: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
     }

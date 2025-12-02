@@ -17,11 +17,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.cs407.festify.data.model.Event
+import com.cs407.festify.ui.theme.screens.shareEvent
+import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
 
 /**
  * A "Smart" List that handles Layout, Cards, Reporting, and Empty States automatically.
@@ -30,14 +34,15 @@ import com.cs407.festify.data.model.Event
 fun SmartEventList(
     events: List<Event>,
     onEventClick: (String) -> Unit,
-    // Optional Header (e.g. Search Bar or Title)
+    onReportSubmit: (eventId: String, reason: String) -> Unit,
     headerContent: (LazyListScope.() -> Unit)? = null,
-    // Optional Overlay (e.g. Delete Button for MyEvents)
-    cardOverlay: @Composable (BoxScope.(Event) -> Unit)? = null
+    cardOverlay: @Composable (BoxScope.(Event) -> Unit)? = null,
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
     // --- SHARED REPORTING STATE ---
     var showReportDialog by remember { mutableStateOf(false) }
     var eventIdToReport by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -88,7 +93,9 @@ fun SmartEventList(
         ReportDialog(
             onDismiss = { showReportDialog = false },
             onSubmit = { reason ->
-                // TODO: Wire this up to ViewModel eventually
+                if (eventIdToReport != null) {
+                    detailsViewModel.reportEvent(eventIdToReport!!, reason, context)
+                }
                 showReportDialog = false
             }
         )
@@ -105,6 +112,7 @@ fun EventCard(
     onReport: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier
@@ -186,6 +194,11 @@ fun EventCard(
                         text = { Text("Report", color = MaterialTheme.colorScheme.error) },
                         onClick = { showMenu = false; onReport() },
                         leadingIcon = { Icon(Icons.Default.Flag, null, tint = MaterialTheme.colorScheme.error) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Share Event") },
+                        onClick = { showMenu = false; shareEvent(context, event) },
+                        leadingIcon = { Icon(Icons.Default.Share, null) }
                     )
                 }
             }
