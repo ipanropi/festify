@@ -31,6 +31,9 @@ import com.cs407.festify.data.model.Event
 import com.cs407.festify.ui.theme.screens.components.ReportDialog
 import com.cs407.festify.ui.theme.screens.components.StatusTag
 import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun EventDetailsScreen(
@@ -186,11 +189,52 @@ fun EventDetailsContent(
 
             // RSVP Button
             val isAttending = rsvpStatus == "attending"
+            val db = FirebaseFirestore.getInstance()
+            val user = FirebaseAuth.getInstance().currentUser
+
             Button(
-                onClick = { viewModel.toggleRsvp(event.id) },
+                onClick = {
+                    viewModel.toggleRsvp(event.id)
+
+                    // If user joined, add to chat participants
+                    if (!isAttending && user != null) {
+                        val chatRef = db.collection("chats").document(event.id)
+                        chatRef.get().addOnSuccessListener { doc ->
+                            if (doc.exists()) {
+                                chatRef.update(
+                                    mapOf(
+                                        "participantIds" to FieldValue.arrayUnion(user.uid),
+                                        "participantCount" to FieldValue.increment(1)
+                                    )
+                                )
+                            } else {
+                                // Create chat if it doesn’t exist
+                                chatRef.set(
+                                    mapOf(
+                                        "eventId" to event.id,
+                                        "eventName" to event.title,
+                                        "participantIds" to listOf(user.uid),
+                                        "participantCount" to 1,
+                                        "lastMessage" to "Welcome to ${event.title}! 🎉",
+                                        "lastMessageSender" to "System",
+                                        "lastMessageTime" to com.google.firebase.Timestamp.now()
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    // If user cancels attendance, remove from chat
+                    else if (isAttending && user != null) {
+                        db.collection("chats").document(event.id)
+                            .update("participantIds", FieldValue.arrayRemove(user.uid))
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isAttending) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    containerColor = if (isAttending)
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.primary
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
