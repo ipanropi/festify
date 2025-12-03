@@ -25,7 +25,8 @@ import javax.inject.Singleton
 @Singleton
 class EventRepository @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val auth: FirebaseAuth
+    private val auth: FirebaseAuth,
+    private val userRepository: UserRepository
 ) {
 
     private val currentUserId: String?
@@ -151,7 +152,10 @@ class EventRepository @Inject constructor(
             val userId = currentUserId
                 ?: return Result.failure(Exception("Cannot create event: User not signed in."))
 
-            val userName = currentUserName ?: "Unknown"
+            // Fetch user profile to get name and avatar
+            val userProfile = userRepository.getUserProfile(userId).getOrNull()
+            val userName = userProfile?.name ?: currentUserName ?: "Unknown"
+            val avatarUrl = userProfile?.profile?.avatarUrl ?: ""
 
             val eventData = hashMapOf(
                 FirestoreCollections.Fields.TITLE to event.title,
@@ -165,6 +169,7 @@ class EventRepository @Inject constructor(
                 FirestoreCollections.Fields.STATUS to FirestoreCollections.Status.UPCOMING,
                 FirestoreCollections.Fields.HOST_ID to userId,
                 FirestoreCollections.Fields.HOST_NAME to userName,
+                FirestoreCollections.Fields.HOST_AVATAR_URL to avatarUrl,
                 FirestoreCollections.Fields.CREATED_AT to FieldValue.serverTimestamp(),
                 FirestoreCollections.Fields.UPDATED_AT to FieldValue.serverTimestamp(),
                 FirestoreCollections.Fields.START_DATE_TIME to event.startDateTime,
@@ -688,6 +693,87 @@ class EventRepository @Inject constructor(
                 } ?: emptyList()
 
                 trySend(Result.success(checkIns))
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * Migration function to update all events with missing host information
+     * This will fetch all events and update their hostName and hostAvatarUrl
+     */
+    suspend fun migrateEventHostInfo(): Result<Int> {
+        return try {
+            // Fetch all events
+            val eventsSnapshot = firestore.collection(FirestoreCollections.EVENTS)
+                .get()
+                .await()
+
+            var updatedCount = 0
+
+            // Update each event that has missing host info
+            for (document in eventsSnapshot.documents) {
+                val event = document.toObject(Event::class.java) ?: continue
+
+                // Skip if hostName and hostAvatarUrl are already set
+                if (event.hostName.isNotEmpty() && event.hostAvatarUrl.isNotEmpty()) {
+                    continue
+                }
+
+                // Fetch the host's profile
+                val hostProfile = userRepository.getUserProfile(event.hostId).getOrNull()
+
+                if (hostProfile != null) {
+                    val updates = mutableMapOf<String, Any>()
+
+                    // Update hostName if empty
+                    if (event.hostName.isEmpty()) {
+                        updates[FirestoreCollections.Fields.HOST_NAME] = hostProfile.name.ifEmpty { "Unknown" }
+                    }
+
+                    // Update hostAvatarUrl if empty
+                    if (event.hostAvatarUrl.isEmpty()) {
+                        updates[FirestoreCollections.Fields.HOST_AVATAR_URL] = hostProfile.profile.avatarUrl
+                    }
+
+                    // Apply updates
+                    if (updates.isNotEmpty()) {
+                        firestore.collection(FirestoreCollections.EVENTS)
+                            .document(event.id)
+                            .update(updates)
+                            .await()
+                        updatedCount++
+                        println("Updated event ${event.id} with host info")
+                    }
+                }
+            }
+
+            Result.success(updatedCount)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get events hosted by a specific user
+     */
+    fun getEventsByHostId(hostId: String): Flow<Result<List<Event>>> = callbackFlow {
+        val listener = firestore.collection(FirestoreCollections.EVENTS)
+            .whereEqualTo(FirestoreCollections.Fields.HOST_ID, hostId)
+            .whereEqualTo(FirestoreCollections.Fields.STATUS, FirestoreCollections.Status.UPCOMING)
+            .orderBy(FirestoreCollections.Fields.START_DATE_TIME, Query.Direction.DESCENDING)
+            .limit(5) // Show only 5 most recent events
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Result.failure(error))
+                    return@addSnapshotListener
+                }
+
+                val events = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(Event::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+
+                trySend(Result.success(events))
             }
 
         awaitClose { listener.remove() }

@@ -56,6 +56,7 @@ object FirestoreCollections {
         const val STATUS = "status"
         const val HOST_ID = "hostId"
         const val HOST_NAME = "hostName"
+        const val HOST_AVATAR_URL = "hostAvatarUrl"
         const val START_DATE_TIME = "startDateTime"
         const val END_DATE_TIME = "endDateTime"
         const val CATEGORY = "category"

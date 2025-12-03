@@ -24,6 +24,7 @@ data class ProfileUiState(
     val upcomingEvents: Int = 0,
     val connections: Int = 0,
     val achievements: List<Achievement> = emptyList(),
+    val friendRequests: List<com.cs407.festify.data.model.FriendRequest> = emptyList(),
     val darkMode: Boolean = false,
     val pushNotifications: Boolean = true
 )
@@ -40,6 +41,7 @@ class ProfileViewModel @Inject constructor(
     init {
         loadUserProfile()
         loadAchievements()
+        loadFriendRequests()
     }
 
     private fun loadUserProfile() {
@@ -87,6 +89,47 @@ class ProfileViewModel @Inject constructor(
                         it.copy(achievements = emptyList())
                     }
                 }
+            }
+        }
+    }
+
+    private fun loadFriendRequests() {
+        viewModelScope.launch {
+            userRepository.getFriendRequests().collect { result ->
+                result.onSuccess { requests ->
+                    _uiState.update {
+                        it.copy(friendRequests = requests)
+                    }
+                }.onFailure {
+                    // Silently fail for friend requests
+                    _uiState.update {
+                        it.copy(friendRequests = emptyList())
+                    }
+                }
+            }
+        }
+    }
+
+    fun acceptFriendRequest(requestId: String) {
+        viewModelScope.launch {
+            val result = userRepository.acceptFriendRequest(requestId)
+            if (result.isSuccess) {
+                // Friend requests list will update automatically via Flow
+                println("Friend request accepted")
+            } else {
+                println("Failed to accept friend request: ${result.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    fun declineFriendRequest(requestId: String) {
+        viewModelScope.launch {
+            val result = userRepository.declineFriendRequest(requestId)
+            if (result.isSuccess) {
+                // Friend requests list will update automatically via Flow
+                println("Friend request declined")
+            } else {
+                println("Failed to decline friend request: ${result.exceptionOrNull()?.message}")
             }
         }
     }

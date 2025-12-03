@@ -202,6 +202,41 @@ fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Friend Requests Section
+        if (uiState.friendRequests.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = if (isDark) 0.dp else 2.dp
+                )
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = if (isDark) 3.dp else 0.dp
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Friend Requests (${uiState.friendRequests.size})",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        uiState.friendRequests.forEach { request ->
+                            FriendRequestItem(
+                                request = request,
+                                onAccept = { viewModel.acceptFriendRequest(request.id) },
+                                onDecline = { viewModel.declineFriendRequest(request.id) },
+                                isDark = isDark
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -585,5 +620,75 @@ fun EditProfileDialog(
         },
         containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@Composable
+fun FriendRequestItem(
+    request: com.cs407.festify.data.model.FriendRequest,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+    isDark: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Profile Picture or Initials
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = request.senderName.take(1).uppercase(),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Name
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = request.senderName,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Wants to connect",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        // Action Buttons
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(
+                onClick = onAccept,
+                modifier = Modifier.height(36.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Accept", fontSize = 12.sp)
+            }
+            OutlinedButton(
+                onClick = onDecline,
+                modifier = Modifier.height(36.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Decline", fontSize = 12.sp)
+            }
+        }
+    }
+    HorizontalDivider(
+        modifier = Modifier.padding(vertical = 4.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
     )
 }

@@ -31,23 +31,25 @@ fun HomeScreen(
     SmartEventList(
         events = events,
         onEventClick = { id -> navController.navigate("event/$id") },
-
+        onProfileClick = { userId -> navController.navigate("user/$userId") },
         headerContent = {
             item {
-                Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp))
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
 
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = {
-                        query = it
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search events…") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
-                )
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = {
+                            query = it
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search events…") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                    )
 
-                Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(16.dp))
+                }
             }
         },
         onReportSubmit = { eventId, reason ->

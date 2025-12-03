@@ -322,4 +322,307 @@ class UserRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    // ============================================
+    // FRIEND SYSTEM FUNCTIONS
+    // ============================================
+
+    /**
+     * Send a friend request to another user
+     */
+    suspend fun sendFriendRequest(receiverId: String): Result<Unit> {
+        return try {
+            val userId = currentUserId
+                ?: return Result.failure(Exception("No user signed in"))
+
+            if (userId == receiverId) {
+                return Result.failure(Exception("Cannot send friend request to yourself"))
+            }
+
+            // Get current user's profile
+            val senderProfile = getUserProfile(userId).getOrNull()
+                ?: return Result.failure(Exception("Sender profile not found"))
+
+            val requestId = "${userId}_${receiverId}"
+
+            val friendRequest = hashMapOf(
+                "id" to requestId,
+                "senderId" to userId,
+                "senderName" to senderProfile.name,
+                "senderAvatarUrl" to senderProfile.profile.avatarUrl,
+                "receiverId" to receiverId,
+                "status" to "pending",
+                "createdAt" to FieldValue.serverTimestamp(),
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+
+            // Add to receiver's friend requests
+            firestore.collection(FirestoreCollections.USERS)
+                .document(receiverId)
+                .collection("friendRequests")
+                .document(requestId)
+                .set(friendRequest)
+                .await()
+
+            // Add to sender's sent requests
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("sentRequests")
+                .document(requestId)
+                .set(friendRequest)
+                .await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Accept a friend request
+     */
+    suspend fun acceptFriendRequest(requestId: String): Result<Unit> {
+        return try {
+            val userId = currentUserId
+                ?: return Result.failure(Exception("No user signed in"))
+
+            // Get the friend request
+            val requestDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friendRequests")
+                .document(requestId)
+                .get()
+                .await()
+
+            val senderId = requestDoc.getString("senderId")
+                ?: return Result.failure(Exception("Invalid friend request"))
+
+            // Update request status to accepted
+            val updates = mapOf(
+                "status" to "accepted",
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friendRequests")
+                .document(requestId)
+                .update(updates)
+                .await()
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(senderId)
+                .collection("sentRequests")
+                .document(requestId)
+                .update(updates)
+                .await()
+
+            // Add to both users' friends list
+            val friendData = mapOf(
+                "userId" to senderId,
+                "addedAt" to FieldValue.serverTimestamp()
+            )
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friends")
+                .document(senderId)
+                .set(friendData)
+                .await()
+
+            val currentUserFriendData = mapOf(
+                "userId" to userId,
+                "addedAt" to FieldValue.serverTimestamp()
+            )
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(senderId)
+                .collection("friends")
+                .document(userId)
+                .set(currentUserFriendData)
+                .await()
+
+            // Increment connections count for both users
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(1))
+                .await()
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(senderId)
+                .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(1))
+                .await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Decline a friend request
+     */
+    suspend fun declineFriendRequest(requestId: String): Result<Unit> {
+        return try {
+            val userId = currentUserId
+                ?: return Result.failure(Exception("No user signed in"))
+
+            // Get the friend request
+            val requestDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friendRequests")
+                .document(requestId)
+                .get()
+                .await()
+
+            val senderId = requestDoc.getString("senderId")
+                ?: return Result.failure(Exception("Invalid friend request"))
+
+            // Delete the request from both users
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friendRequests")
+                .document(requestId)
+                .delete()
+                .await()
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(senderId)
+                .collection("sentRequests")
+                .document(requestId)
+                .delete()
+                .await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Get friend requests (received)
+     */
+    fun getFriendRequests(): Flow<Result<List<com.cs407.festify.data.model.FriendRequest>>> = callbackFlow {
+        val userId = currentUserId
+        if (userId == null) {
+            trySend(Result.failure(Exception("No user signed in")))
+            close()
+            return@callbackFlow
+        }
+
+        val listener = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection("friendRequests")
+            .whereEqualTo("status", "pending")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Result.failure(error))
+                    return@addSnapshotListener
+                }
+
+                val requests = snapshot?.documents?.mapNotNull {
+                    it.toObject(com.cs407.festify.data.model.FriendRequest::class.java)
+                } ?: emptyList()
+
+                trySend(Result.success(requests))
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * Check friendship status with another user
+     */
+    suspend fun checkFriendshipStatus(otherUserId: String): Result<String> {
+        return try {
+            val userId = currentUserId
+                ?: return Result.failure(Exception("No user signed in"))
+
+            if (userId == otherUserId) {
+                return Result.success("self")
+            }
+
+            // Check if already friends
+            val friendDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friends")
+                .document(otherUserId)
+                .get()
+                .await()
+
+            if (friendDoc.exists()) {
+                return Result.success("friends")
+            }
+
+            // Check if request already sent
+            val sentRequestId = "${userId}_${otherUserId}"
+            val sentRequestDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("sentRequests")
+                .document(sentRequestId)
+                .get()
+                .await()
+
+            if (sentRequestDoc.exists()) {
+                return Result.success("request_sent")
+            }
+
+            // Check if received request from this user
+            val receivedRequestId = "${otherUserId}_${userId}"
+            val receivedRequestDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friendRequests")
+                .document(receivedRequestId)
+                .get()
+                .await()
+
+            if (receivedRequestDoc.exists()) {
+                return Result.success("request_received")
+            }
+
+            Result.success("none")
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Remove a friend
+     */
+    suspend fun removeFriend(friendId: String): Result<Unit> {
+        return try {
+            val userId = currentUserId
+                ?: return Result.failure(Exception("No user signed in"))
+
+            // Remove from both users' friends list
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friends")
+                .document(friendId)
+                .delete()
+                .await()
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(friendId)
+                .collection("friends")
+                .document(userId)
+                .delete()
+                .await()
+
+            // Decrement connections count for both users
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(-1))
+                .await()
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(friendId)
+                .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(-1))
+                .await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
