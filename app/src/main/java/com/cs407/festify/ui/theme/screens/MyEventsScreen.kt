@@ -1,115 +1,242 @@
 package com.cs407.festify.ui.theme.screens
 
-import androidx.compose.foundation.Image
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.rememberAsyncImagePainter
-import com.cs407.festify.data.model.Event
-import com.cs407.festify.ui.viewmodels.MyEventsViewModel
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.DateRange
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.PeopleOutline
-import androidx.compose.material.icons.outlined.Style
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.cs407.festify.data.model.Event
+import com.cs407.festify.ui.theme.screens.components.SmartEventList
+import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
+import com.cs407.festify.ui.viewmodels.MyEventsViewModel
 import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
+import com.cs407.festify.ui.theme.viewmodels.JoinedEventsViewModel
+import java.util.*
 
-
+// ==========================================
+// 1. HOSTED EVENTS SCREEN (Logic + Buttons)
+// ==========================================
 @Composable
 fun MyEventsScreen(
-    // Get the ViewModel that's automatically created
-    viewModel: MyEventsViewModel = hiltViewModel()
+    viewModel: MyEventsViewModel = hiltViewModel(),
+    navController: NavController,
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
-
+    // --- STATE ---
     var showCreateEventDialog by remember { mutableStateOf(false) }
+    var eventToDelete by remember { mutableStateOf<Event?>(null) }
 
-    Spacer(modifier = Modifier.height(16.dp))
-    // Observe the list of events from the ViewModel
+    var eventToEdit by remember { mutableStateOf<Event?>(null) }
+
     val myEvents by viewModel.myEvents.collectAsState()
-
-
-    val event = Event(
-        id = "1",
-        title = "Tech Startup Networking",
-        description = "Connect with fellow entrepreneurs and innovators. Great opportunity to share ideas, find mentors, and build your startup network!",
-        imageUrl = "https://images.unsplash.com/photo-1551836022-4c4c79ecde51",
-        date = "Nov 5, 2025",
-        time = "6:00 PM - 9:00 PM",
-        location = "Innovation Hub, Downtown",
-        attendees = 42,
-        maxAttendees = 80,
-        status = "upcoming",
-        userRsvp = "attending"
-    )
-
+    val context = LocalContext.current
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    showCreateEventDialog = true
-                },
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = "Add Event")
+            FloatingActionButton(onClick = {
+                eventToEdit = null // Ensure we are in "Create" mode
+                showCreateEventDialog = true
+            }) {
+                Icon(Icons.Filled.Add, "Add")
             }
         }
     ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding)) {
+            SmartEventList(
+                events = myEvents,
+                onEventClick = { id -> navController.navigate("event/$id") },
+                headerContent = {
+                    item { Text("Events Hosted", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
+                },
+                // Custom Overlay with EDIT and DELETE buttons
+                cardOverlay = { event ->
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                    ) {
+                        // --- EDIT BUTTON ---
+                        IconButton(
+                            onClick = {
+                                eventToEdit = event // Set the event to pre-fill
+                                showCreateEventDialog = true
+                            },
+                            modifier = Modifier
+                                .padding(end = 8.dp) // Space between buttons
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
 
-
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .padding(16.dp)
-        ) {
-            Text("My Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(16.dp))
-            EventCard(event = event)
-            Spacer(modifier = Modifier.height(16.dp))
+                        // --- DELETE BUTTON ---
+                        IconButton(
+                            onClick = { eventToDelete = event },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                },
+                onReportSubmit = { eventId, reason ->
+                    detailsViewModel.reportEvent(eventId, reason, context)
+                }
+            )
         }
 
+        // --- SMART DELETE DIALOG ---
+        if (eventToDelete != null) {
+            val hasAttendees = eventToDelete!!.attendees > 0
+
+            AlertDialog(
+                onDismissRequest = { eventToDelete = null },
+                icon = { Icon(Icons.Default.Warning, contentDescription = null) },
+                title = {
+                    Text(
+                        text = if (hasAttendees) "Active Event Warning" else "Confirm Deletion",
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (hasAttendees) {
+                            Text("This event has ${eventToDelete!!.attendees} attendee(s).")
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Deleting it will remove it from their app without notice.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        } else {
+                            Text("Are you sure you want to permanently delete '${eventToDelete!!.title}'?")
+                        }
+                    }
+                },
+                // We use a Column to stack buttons neatly in the middle
+                confirmButton = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+
+                        if (hasAttendees) {
+                            FilledTonalButton(
+                                onClick = {
+                                    eventToDelete?.let { viewModel.cancelEvent(it) }
+                                    eventToDelete = null
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Mark as 'Cancelled'")
+                            }
+                        }
+
+
+                        Button(
+                            onClick = {
+                                eventToDelete?.let { viewModel.deleteEvent(it) }
+                                eventToDelete = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (hasAttendees) "Delete Anyway" else "Delete Event")
+                        }
+
+
+                        TextButton(
+                            onClick = { eventToDelete = null },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Close")
+                        }
+                    }
+                }
+
+            )
+        }
 
         if (showCreateEventDialog) {
             CreateEventDialog(
-                onDismiss = { showCreateEventDialog = false },
-
-                onCreateEvent = { title, description, location, timestamp, max, tags ->
-
-                    viewModel.createEvent(title, description, location, timestamp, max, tags)
+                onDismiss = {
                     showCreateEventDialog = false
+                    eventToEdit = null // Reset so next time it opens empty
+                },
+                eventToEdit = eventToEdit, // Pass the event to pre-fill the form!
+                onCreateEvent = { title, desc, loc, time, max, tags, uri ->
+                    if (eventToEdit == null) {
+                        // CREATE MODE
+                        viewModel.createEvent(title, desc, loc, time, max, tags, uri)
+                    } else {
+                        // EDIT MODE
+                        viewModel.updateEvent(eventToEdit!!.id, title, desc, loc, time, max, tags, uri)
+                    }
+                    showCreateEventDialog = false
+                    eventToEdit = null
                 }
             )
         }
     }
 }
+
+// ==========================================
+// 2. JOINED EVENTS SCREEN (Simple List)
+// ==========================================
+@Composable
+fun JoinedEventsScreen(
+    navController: NavController,
+    viewModel: JoinedEventsViewModel = hiltViewModel(),
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
+) {
+    val joinedEvents by viewModel.joinedEvents.collectAsState()
+    val context = LocalContext.current
+
+
+    SmartEventList(
+        events = joinedEvents,
+        onEventClick = { id -> navController.navigate("event/$id") },
+        headerContent = {
+            item {
+                Text("Events Joined", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            }
+        },
+        onReportSubmit = { eventId, reason ->
+            detailsViewModel.reportEvent(eventId, reason, context)
+        }
+    )
+}
+
+// ==========================================
+// 3. HELPER DIALOGS
+// ==========================================
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,31 +248,61 @@ fun CreateEventDialog(
         location: String,
         startDateTime: Timestamp,
         maxAttendees: Int,
-        tags: List<String>
-    ) -> Unit
+        tags: List<String>,
+        imageUri: Uri?,
+
+    ) -> Unit,
+    eventToEdit: Event? = null,
 ) {
     // --- Form States ---
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var maxAttendees by remember { mutableStateOf("") }
-    var tags by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
+    var description by remember { mutableStateOf(eventToEdit?.description ?: "") }
+    var location by remember { mutableStateOf(eventToEdit?.location ?: "") }
+    var maxAttendees by remember { mutableStateOf(eventToEdit?.maxAttendees?.toString() ?: "") }
+    var tags by remember { mutableStateOf(eventToEdit?.tags?.joinToString(", ") ?: "") }
+    var imageUri by remember { mutableStateOf<Uri?>(null) }
 
-    // --- Date/Time Picker States ---
-    val datePickerState = rememberDatePickerState()
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = PickVisualMedia(),
+        onResult = { uri -> imageUri = uri }
+    )
+
+    // --- Date/Time Logic (Critical Fix) ---
+    // 1. Get initial timestamp from event, or null
+    val initialTimestamp = eventToEdit?.startDateTime?.toDate()
+
+    // 2. Initialize DatePicker state
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialTimestamp?.time
+    )
+    var selectedDateMillis by remember { mutableStateOf(initialTimestamp?.time) }
+
+    // 3. Initialize Time state
+    // We need to extract hour/minute from the timestamp if it exists
+    val initialCalendar = remember(initialTimestamp) {
+        if (initialTimestamp != null) {
+            Calendar.getInstance().apply { time = initialTimestamp }
+        } else {
+            null
+        }
+    }
+
+    var selectedTimeHour by remember { mutableStateOf(initialCalendar?.get(Calendar.HOUR_OF_DAY)) }
+    var selectedTimeMinute by remember { mutableStateOf(initialCalendar?.get(Calendar.MINUTE)) }
+
+    // Dialog States
     var showDatePicker by remember { mutableStateOf(false) }
-    val timePickerState = rememberTimePickerState()
+    val timePickerState = rememberTimePickerState(
+        initialHour = selectedTimeHour ?: 0,
+        initialMinute = selectedTimeMinute ?: 0,
+        is24Hour = false
+    )
     var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDateMillis by remember { mutableStateOf<Long?>(null) }
-    var selectedTimeHour by remember { mutableStateOf<Int?>(null) }
-    var selectedTimeMinute by remember { mutableStateOf<Int?>(null) }
 
-    // --- Date/Time Formatter for the Button Text ---
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
     val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.US) }
 
 
-    // - The DatePickerDialog Composable ---
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -182,13 +339,10 @@ fun CreateEventDialog(
         }
     }
 
-
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create New Event") },
         text = {
-            //  LazyColumn to make the form scrollable
             LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item {
                     OutlinedTextField(
@@ -207,7 +361,6 @@ fun CreateEventDialog(
                     )
                 }
 
-                // --- 8. Date and Time Pickers ---
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -217,9 +370,7 @@ fun CreateEventDialog(
                         Button(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.DateRange, "Date")
                             Spacer(Modifier.width(8.dp))
-                            val buttonText = selectedDateMillis?.let {
-                                dateFormatter.format(Date(it))
-                            } ?: "Select Date"
+                            val buttonText = selectedDateMillis?.let { dateFormatter.format(Date(it)) } ?: "Select Date"
                             Text(buttonText)
                         }
                         Spacer(Modifier.width(16.dp))
@@ -237,7 +388,6 @@ fun CreateEventDialog(
                         }
                     }
                 }
-
                 item {
                     OutlinedTextField(
                         value = location,
@@ -250,7 +400,7 @@ fun CreateEventDialog(
                 item {
                     OutlinedTextField(
                         value = maxAttendees,
-                        onValueChange = { maxAttendees = it.filter { it.isDigit() } }, // Only allow numbers
+                        onValueChange = { maxAttendees = it.filter { it.isDigit() } },
                         label = { Text("Max Attendees") },
                         leadingIcon = { Icon(Icons.Outlined.PeopleOutline, "Max Attendees") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -258,7 +408,6 @@ fun CreateEventDialog(
                     )
                 }
 
-                // Image Upload Placeholder
                 item {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -267,12 +416,12 @@ fun CreateEventDialog(
                     ) {
                         Icon(Icons.Outlined.Image, "Upload Image", modifier = Modifier.size(40.dp), tint = Color.Gray)
                         Text("Upload event image or select from gallery", style = MaterialTheme.typography.bodySmall)
-                        Button(onClick = { /* TODO: Launch image picker */ }) {
-                            Text("Choose Image")
+                        OutlinedButton(onClick = { photoPickerLauncher.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }) {
+                            Text(if (imageUri == null) "Select Image" else "Change Image")
                         }
+                        imageUri?.let { Text("Selected: ${it.path?.substringAfterLast('/')}", style = MaterialTheme.typography.bodySmall) }
                     }
                 }
-
                 item {
                     OutlinedTextField(
                         value = tags,
@@ -283,8 +432,6 @@ fun CreateEventDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
-
-                // Community Guidelines ---
                 item {
                     Text(
                         text = "By creating this event, you agree to our Community Guidelines",
@@ -297,63 +444,36 @@ fun CreateEventDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val finalTimestamp = combineDateAndTime(
-                        selectedDateMillis,
-                        selectedTimeHour,
-                        selectedTimeMinute
-                    )
-                    val maxAttendeesInt = maxAttendees.toIntOrNull() ?: 100 // Default to 100
+                    val finalTimestamp = combineDateAndTime(selectedDateMillis, selectedTimeHour, selectedTimeMinute)
+                    val maxAttendeesInt = maxAttendees.toIntOrNull() ?: 100
                     val tagsList = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
                     if (finalTimestamp != null) {
-                        onCreateEvent(
-                            title,
-                            description,
-                            location,
-                            finalTimestamp,
-                            maxAttendeesInt,
-                            tagsList
-                        )
+                        onCreateEvent(title, description, location, finalTimestamp, maxAttendeesInt, tagsList, imageUri)
                     }
                     onDismiss()
                 },
                 enabled = title.isNotBlank() && location.isNotBlank() && selectedDateMillis != null && selectedTimeHour != null
-            ) {
-                Text("Create Event")
-            }
+            ) { Text("Create Event") }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
-// --- Helper Function to combine results ---
-private fun combineDateAndTime(
-    dateMillis: Long?,
-    hour: Int?,
-    minute: Int?
-): Timestamp? {
-    if (dateMillis == null || hour == null || minute == null) {
-        return null
-    }
-
+private fun combineDateAndTime(dateMillis: Long?, hour: Int?, minute: Int?): Timestamp? {
+    if (dateMillis == null || hour == null || minute == null) return null
     val calendar = Calendar.getInstance().apply {
         timeInMillis = dateMillis
-
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
-
-        // Add the selected hour and minute
         add(Calendar.HOUR_OF_DAY, hour)
         add(Calendar.MINUTE, minute)
     }
     return Timestamp(calendar.time)
 }
 
-//  Helper Composable for Time Picker
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TimePickerDialog(
@@ -371,26 +491,15 @@ fun TimePickerDialog(
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
             color = containerColor,
-            modifier = Modifier
-                .width(IntrinsicSize.Min)
-                .height(IntrinsicSize.Min)
+            modifier = Modifier.width(IntrinsicSize.Min).height(IntrinsicSize.Min)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(bottom = 20.dp)
-                )
+                Text(text = title, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(bottom = 20.dp))
                 content()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 20.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
                     dismissButton?.invoke()
                     confirmButton()
                 }
@@ -398,4 +507,3 @@ fun TimePickerDialog(
         }
     }
 }
-

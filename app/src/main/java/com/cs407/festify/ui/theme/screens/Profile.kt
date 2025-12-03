@@ -2,7 +2,6 @@ package com.cs407.festify.ui.screens
 
 import android.graphics.drawable.Icon
 import android.media.Image
-import com.google.firebase.auth.FirebaseAuth
 import android.util.Patterns
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -38,19 +37,57 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cs407.festify.ui.theme.LocalDarkMode
+import androidx.compose.material.icons.filled.Logout
 
 @Composable
-fun ProfileScreen(
-    viewModel: ProfileViewModel = viewModel(),
-    onLogout: () -> Unit
-) {
+fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
     val darkMode = LocalDarkMode.current
     val isDark = darkMode.value
     var showEditDialog by remember { mutableStateOf(false) }
+
+    // Show loading indicator
+    if (uiState.isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    // Show error state
+    if (uiState.error != null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Error loading profile",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    text = uiState.error ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(onClick = { viewModel.refreshProfileData() }) {
+                    Text("Retry")
+                }
+            }
+        }
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -184,8 +221,17 @@ fun ProfileScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    uiState.achievements.forEach {
-                        AchievementItem(it.title, it.description, it.isNew)
+                    if (uiState.achievements.isEmpty()) {
+                        Text(
+                            "No achievements yet. Start hosting or attending events!",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    } else {
+                        uiState.achievements.forEach {
+                            AchievementItem(it.title, it.description, it.isNew)
+                        }
                     }
                 }
             }
@@ -248,24 +294,32 @@ fun ProfileScreen(
                 }
             }
         }
-        //Log out button
-        Spacer(modifier = Modifier.height(20.dp))
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Logout Button
         Button(
-            onClick = {
-                FirebaseAuth.getInstance().signOut()
-                onLogout()
-            },
+            onClick = { viewModel.signOut() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .padding(horizontal = 32.dp),
-            shape = RoundedCornerShape(10.dp),
+                .height(50.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.errorContainer,
                 contentColor = MaterialTheme.colorScheme.onErrorContainer
-            )
+            ),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Log Out", fontWeight = FontWeight.SemiBold)
+            Icon(
+                Icons.Filled.Logout,
+                contentDescription = "Logout",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "Logout",
+                fontWeight = FontWeight.Medium,
+                fontSize = 16.sp
+            )
         }
     }
 

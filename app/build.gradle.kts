@@ -82,5 +82,7 @@ dependencies {
     // UI
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("com.google.accompanist:accompanist-pager-indicators:0.32.0")
+
 
 }

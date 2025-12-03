@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.DisposableEffect
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.*
@@ -28,13 +29,15 @@ import com.cs407.festify.ui.theme.screens.MyEventsScreen
 import com.cs407.festify.ui.theme.screens.HomeScreen
 import com.cs407.festify.ui.theme.screens.ChatListScreen
 import com.cs407.festify.ui.theme.screens.ChatScreen
+import com.cs407.festify.ui.theme.screens.LoginScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
-import com.cs407.festify.ui.theme.screens.EventDetailsScreen
-import com.cs407.festify.ui.theme.screens.LoginScreen
-import com.google.firebase.Firebase
+import com.cs407.festify.ui.theme.screens.MyEventsTabScreen
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import com.cs407.festify.ui.theme.screens.EventDetailsScreen
+
 
 sealed class Screen(val route: String, val title: String) {
     object Home : Screen("home", "Home")
@@ -45,23 +48,33 @@ sealed class Screen(val route: String, val title: String) {
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var firebaseAuth: FirebaseAuth
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             val darkModeState = remember { mutableStateOf(false) }
-            val auth = FirebaseAuth.getInstance()
-            var isLoggedIn by remember { mutableStateOf(auth.currentUser != null) }
+            var isLoggedIn by remember { mutableStateOf(firebaseAuth.currentUser != null) }
+
+            // Listen to auth state changes
+            DisposableEffect(Unit) {
+                val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+                    isLoggedIn = auth.currentUser != null
+                }
+                firebaseAuth.addAuthStateListener(authStateListener)
+
+                onDispose {
+                    firebaseAuth.removeAuthStateListener(authStateListener)
+                }
+            }
 
             CompositionLocalProvider(LocalDarkMode provides darkModeState) {
                 FestifyTheme {
                     if (isLoggedIn) {
-                        FestifyApp(
-                            onLogout = {
-                                FirebaseAuth.getInstance().signOut()
-                                isLoggedIn = false
-                            }
-                        )
+                        FestifyApp()
                     } else {
                         LoginScreen(
                             onLoginSuccess = { isLoggedIn = true }
@@ -74,7 +87,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun FestifyApp(onLogout: () -> Unit) {
+fun FestifyApp() {
     val navController = rememberNavController()
 
     val items = listOf(
@@ -83,6 +96,7 @@ fun FestifyApp(onLogout: () -> Unit) {
         Screen.Chat,
         Screen.Profile
     )
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -132,13 +146,19 @@ fun FestifyApp(onLogout: () -> Unit) {
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
                 ChatScreen(eventName = eventId.replace("_", " ").replaceFirstChar { it.uppercase() })
             }
-            composable(Screen.MyEvents.route) { MyEventsScreen() }
-            composable(Screen.Profile.route) { ProfileScreen(onLogout = onLogout) }
-            composable("event/{eventId}") { backStackEntry ->
-                val eventId = backStackEntry.arguments?.getString("eventId")!!
-                EventDetailsScreen(eventId, navController)
-            }
+            composable(Screen.MyEvents.route) { MyEventsTabScreen(navController = navController) }
+            composable(Screen.Profile.route) { ProfileScreen() }
+            composable(
+                route = "event/{eventId}",
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
 
+                EventDetailsScreen(
+                    eventId = eventId,
+                    navController = navController
+                )
+            }
         }
     }
 }

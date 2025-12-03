@@ -13,6 +13,51 @@ import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// ============================================
+// Validation Enums and Functions
+// ============================================
+
+enum class EmailResult {
+    Valid,
+    Empty,
+    Invalid,
+}
+
+enum class PasswordResult {
+    Valid,
+    Empty,
+    Short,
+    Invalid
+}
+
+fun validateEmail(email: String): EmailResult {
+    if (email.isEmpty()){
+        return EmailResult.Empty
+    }
+    val pattern = Regex("^[\\w.]+@([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}$")
+    return if (pattern.matches(email)){
+        EmailResult.Valid
+    } else {
+        EmailResult.Invalid
+    }
+}
+
+fun validatePassword(password: String): PasswordResult {
+    if (password.isEmpty()) {
+        return PasswordResult.Empty
+    }
+    if (password.length < 5) {
+        return PasswordResult.Short
+    }
+    if (Regex("\\d+").containsMatchIn(password) &&
+        Regex("[a-z]+").containsMatchIn(password) &&
+        Regex("[A-Z]+").containsMatchIn(password)
+    ) {
+        return PasswordResult.Valid
+    }
+    return PasswordResult.Invalid
+}
+
 /**
  * Repository for handling authentication operations
  * Manages Firebase Authentication and user profile creation
@@ -40,6 +85,75 @@ class AuthRepository @Inject constructor(
      */
     val currentUserId: String?
         get() = currentUser?.uid
+
+    /**
+     * Sign in or sign up a user (callback version for UI compatibility)
+     * Tries to sign in first, if that fails, creates a new account
+     */
+    fun signInOrSignUp(
+        email: String,
+        password: String,
+        onSuccess: (String) -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        // Try to sign in first
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnSuccessListener { result ->
+                val user = result.user
+                onSuccess("Sign-in successful: ${user?.email ?: "Unknown user"}")
+            }
+            .addOnFailureListener { signInException ->
+                // If sign-in fails, try to create account
+                auth.createUserWithEmailAndPassword(email, password)
+                    .addOnSuccessListener { result ->
+                        val firebaseUser = result.user
+                        if (firebaseUser != null) {
+                            // Create user profile in Firestore
+                            val name = email.substringBefore("@")
+                            val initials = name.take(2).uppercase()
+
+                            val userProfile = hashMapOf(
+                                FirestoreCollections.Fields.EMAIL to email,
+                                FirestoreCollections.Fields.NAME to name,
+                                FirestoreCollections.Fields.INITIALS to initials,
+                                FirestoreCollections.Fields.EVENTS_ATTENDED to 0,
+                                FirestoreCollections.Fields.EVENTS_HOSTED to 0,
+                                FirestoreCollections.Fields.RATING to 0.0,
+                                FirestoreCollections.Fields.UPCOMING_EVENTS to 0,
+                                FirestoreCollections.Fields.CONNECTIONS to 0,
+                                FirestoreCollections.Fields.CREATED_AT to FieldValue.serverTimestamp(),
+                                FirestoreCollections.Fields.UPDATED_AT to FieldValue.serverTimestamp(),
+                                "settings" to hashMapOf(
+                                    "darkMode" to false,
+                                    "pushNotifications" to true,
+                                    "notifications" to true,
+                                    "locationServices" to false
+                                ),
+                                "profile" to hashMapOf(
+                                    "bio" to "",
+                                    "avatarUrl" to "",
+                                    "phoneNumber" to ""
+                                )
+                            )
+
+                            firestore.collection(FirestoreCollections.USERS)
+                                .document(firebaseUser.uid)
+                                .set(userProfile)
+                                .addOnSuccessListener {
+                                    onSuccess("Account created for: ${firebaseUser.email ?: "Unknown user"}")
+                                }
+                                .addOnFailureListener { firestoreException ->
+                                    onFailure("Account created but profile creation failed: ${firestoreException.message}")
+                                }
+                        } else {
+                            onFailure("Account creation failed: User is null")
+                        }
+                    }
+                    .addOnFailureListener { createException ->
+                        onFailure("Sign-in failed: ${signInException.message}. Account creation also failed: ${createException.message}")
+                    }
+            }
+    }
 
     /**
      * Sign up a new user with email and password
