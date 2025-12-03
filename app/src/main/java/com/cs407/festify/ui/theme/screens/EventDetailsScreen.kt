@@ -139,15 +139,13 @@ fun EventDetailsContent(
 
         // --- DETAILS ---
         Column(Modifier.padding(16.dp)) {
-            StatusTag(event.status)
+            StatusTag(event.computedStatus)
             Spacer(Modifier.height(8.dp))
 
             Text(event.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
-            // CHANGE 3: Logic to handle Loading State (null)
             val starIcon = if (isVouched == true) Icons.Filled.Star else Icons.Outlined.StarBorder
             val starColor = if (isVouched == true) Color(0xFFFFC107) else Color.Gray
-            // Dim the icon if we are still loading
             val finalTint = if (isVouched == null) Color.LightGray else starColor
 
             // Interactive Vouch Row
@@ -155,25 +153,31 @@ fun EventDetailsContent(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .padding(vertical = 8.dp)
-                    // Since isVouched is Boolean?, we use '== true' to check
-                    .clickable { viewModel.toggleVouch(event.id) }
+                    .clickable(enabled = isVouched != null) {
+                        viewModel.toggleVouch(event.id)
+                    }
             ) {
+
+                val starColor = when (isVouched) {
+                    true -> Color(0xFFFFC107) // Gold (Vouched)
+                    false -> Color.Gray       // Gray (Not Vouched)
+                    null -> Color.LightGray.copy(alpha = 0.3f) // Faint (Loading)
+                }
+
+                val starIcon = if (isVouched == true) Icons.Filled.Star else Icons.Outlined.StarBorder
+
                 Icon(
-                    // Check explicitly for true
-                    imageVector = if (isVouched == true) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    imageVector = starIcon,
                     contentDescription = "Vouch",
-                    // Check explicitly for true
-                    tint = if (isVouched == true) Color(0xFFFFC107) else Color.Gray,
+                    tint = starColor,
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = "${event.vouchCount} Vouches",
                     style = MaterialTheme.typography.titleMedium,
-                    // Check explicitly for true
                     fontWeight = if (isVouched == true) FontWeight.Bold else FontWeight.Normal,
-                    // Use standard black color
-                    color = Color.Black
+                    color = if (isVouched == true) Color.Black else Color.Gray
                 )
             }
 
@@ -345,7 +349,7 @@ fun EventDetailsContent(
         ReportDialog(
             onDismiss = { showReportDialog = false },
             onSubmit = { reason ->
-                // viewModel.reportEvent(event.id, reason)
+                 viewModel.reportEvent(event.id, reason, context)
                 showReportDialog = false
             }
         )

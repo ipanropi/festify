@@ -13,15 +13,20 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.cs407.festify.ui.theme.viewmodels.HomeScreenViewModel
 import com.cs407.festify.ui.theme.screens.components.SmartEventList
+import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
+import androidx.compose.ui.platform.LocalContext
+
+
 
 @Composable
 fun HomeScreen(
     navController: NavController,
-    viewModel: HomeScreenViewModel = hiltViewModel()
+    viewModel: HomeScreenViewModel = hiltViewModel(),
+    detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
     val events by viewModel.events.collectAsState()
     var query by remember { mutableStateOf("") }
-
+    val context = LocalContext.current
 
     SmartEventList(
         events = events,
@@ -44,6 +49,9 @@ fun HomeScreen(
 
                 Spacer(Modifier.height(16.dp))
             }
+        },
+        onReportSubmit = { eventId, reason ->
+            detailsViewModel.reportEvent(eventId, reason, context)
         }
     )
 }

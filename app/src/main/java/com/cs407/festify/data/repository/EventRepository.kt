@@ -79,6 +79,8 @@ class EventRepository @Inject constructor(
                     return@addSnapshotListener
                 }
 
+                println(">>> HOSTED EVENTS LISTENER FIRED: Found ${snapshot?.size()} documents")
+
                 val events = snapshot?.documents?.mapNotNull {
                     it.toObject(Event::class.java)
                 } ?: emptyList()

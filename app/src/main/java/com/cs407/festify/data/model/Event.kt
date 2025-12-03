@@ -2,6 +2,7 @@ package com.cs407.festify.data.model
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.PropertyName
 import com.google.firebase.firestore.ServerTimestamp
 
 /**
@@ -30,12 +31,32 @@ data class Event(
     val startDateTime: Timestamp? = null,
     val endDateTime: Timestamp? = null,
     val category: String = "",
+    @get:PropertyName("isPublic")
     val isPublic: Boolean = true,
     val tags: List<String> = emptyList(),
     val vouchCount: Int = 0,
     val checkInCount: Int = 0,        // Unique users checked in
     val totalCheckIns: Int = 0        // Total check-ins (including duplicates)
 )
+    val vouchCount: Int = 0
+) {
+    val computedStatus: String
+        get() {
+
+            if (status.lowercase() == "cancelled") return "cancelled"
+
+            // 2. If no date, default to upcoming
+            if (startDateTime == null) return "upcoming"
+
+            // 3. Compare with NOW
+            val now = Timestamp.now()
+            return if (startDateTime.seconds < now.seconds) {
+                "past"
+            } else {
+                "upcoming"
+            }
+        }
+}
 
 /**
  * User profile data model
