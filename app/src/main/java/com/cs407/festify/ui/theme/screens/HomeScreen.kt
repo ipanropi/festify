@@ -1,22 +1,28 @@
 package com.cs407.festify.ui.theme.screens
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.cs407.festify.ui.theme.viewmodels.HomeScreenViewModel
 import com.cs407.festify.ui.theme.screens.components.SmartEventList
 import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
-import androidx.compose.ui.platform.LocalContext
-
-
+import com.cs407.festify.ui.theme.viewmodels.HomeScreenViewModel
 
 @Composable
 fun HomeScreen(
@@ -24,8 +30,8 @@ fun HomeScreen(
     viewModel: HomeScreenViewModel = hiltViewModel(),
     detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
-    val events by viewModel.events.collectAsState()
-    var query by remember { mutableStateOf("") }
+    val events by viewModel.filteredEvents.collectAsState()
+    val query by viewModel.searchQuery.collectAsState()
     val context = LocalContext.current
 
     SmartEventList(
@@ -38,15 +44,13 @@ fun HomeScreen(
                     Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(12.dp))
 
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = {
-                            query = it
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search events…") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
-                    )
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { viewModel.onSearchQueryChanged(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Search events") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                )
 
                     Spacer(Modifier.height(16.dp))
                 }
