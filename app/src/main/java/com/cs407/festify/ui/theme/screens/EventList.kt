@@ -195,11 +195,6 @@ fun EventCard(
                         onClick = { showMenu = false; onReport() },
                         leadingIcon = { Icon(Icons.Default.Flag, null, tint = MaterialTheme.colorScheme.error) }
                     )
-                    DropdownMenuItem(
-                        text = { Text("Share Event") },
-                        onClick = { showMenu = false; shareEvent(context, event) },
-                        leadingIcon = { Icon(Icons.Default.Share, null) }
-                    )
                 }
             }
         }

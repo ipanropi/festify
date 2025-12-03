@@ -306,6 +306,14 @@ class EventRepository @Inject constructor(
                 .set(rsvpData)
                 .await()
 
+            // Update user's upcomingEvents count if status is "attending"
+            if (status == FirestoreCollections.RsvpStatus.ATTENDING) {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .update(FirestoreCollections.Fields.UPCOMING_EVENTS, FieldValue.increment(1))
+                    .await()
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -384,6 +392,14 @@ class EventRepository @Inject constructor(
                 .document(eventId)
                 .delete()
                 .await()
+
+            // Decrement user's upcomingEvents count if was attending
+            if (currentStatus == FirestoreCollections.RsvpStatus.ATTENDING) {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .update(FirestoreCollections.Fields.UPCOMING_EVENTS, FieldValue.increment(-1))
+                    .await()
+            }
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -578,7 +594,15 @@ class EventRepository @Inject constructor(
                 .await()
 
             // Update user's check-in tracking
-            updateUserCheckInTracking(userId, eventId)
+            val isFirstCheckIn = updateUserCheckInTracking(userId, eventId)
+
+            // Increment eventsAttended on first check-in only
+            if (isFirstCheckIn) {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .update(FirestoreCollections.Fields.EVENTS_ATTENDED, FieldValue.increment(1))
+                    .await()
+            }
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -612,14 +636,15 @@ class EventRepository @Inject constructor(
 
     /**
      * Update user's check-in tracking for an event
+     * @return true if this was the first check-in, false otherwise
      */
-    private suspend fun updateUserCheckInTracking(userId: String, eventId: String) {
+    private suspend fun updateUserCheckInTracking(userId: String, eventId: String): Boolean {
         val userCheckInRef = firestore.collection(FirestoreCollections.USERS)
             .document(userId)
             .collection(FirestoreCollections.User.CHECK_INS)
             .document(eventId)
 
-        firestore.runTransaction { transaction ->
+        return firestore.runTransaction { transaction ->
             val snapshot = transaction.get(userCheckInRef)
 
             if (snapshot.exists()) {
@@ -629,6 +654,7 @@ class EventRepository @Inject constructor(
                     FirestoreCollections.Fields.CHECK_IN_COUNT, FieldValue.increment(1),
                     FirestoreCollections.Fields.LAST_CHECK_IN_AT, FieldValue.serverTimestamp()
                 )
+                false // Not first check-in
             } else {
                 // Create first check-in
                 transaction.set(userCheckInRef, hashMapOf(
@@ -636,6 +662,7 @@ class EventRepository @Inject constructor(
                     FirestoreCollections.Fields.CHECK_IN_COUNT to 1,
                     FirestoreCollections.Fields.LAST_CHECK_IN_AT to FieldValue.serverTimestamp()
                 ))
+                true // First check-in
             }
         }.await()
     }
