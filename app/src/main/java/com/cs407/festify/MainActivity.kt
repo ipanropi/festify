@@ -36,6 +36,7 @@ import com.cs407.festify.ui.theme.screens.MyEventsTabScreen
 import com.cs407.festify.ui.theme.screens.EventDetailsScreen
 import com.cs407.festify.ui.theme.screens.QRCodeDisplayScreen
 import com.cs407.festify.ui.theme.screens.QRScannerScreen
+import com.cs407.festify.ui.theme.screens.UserProfileScreen
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -177,6 +178,18 @@ fun FestifyApp() {
             // QR Scanner (for attendees)
             composable("qr-scanner") {
                 QRScannerScreen(navController = navController)
+            }
+
+            // User Profile (view other users)
+            composable(
+                route = "user/{userId}",
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                UserProfileScreen(
+                    userId = userId,
+                    navController = navController
+                )
             }
         }
     }

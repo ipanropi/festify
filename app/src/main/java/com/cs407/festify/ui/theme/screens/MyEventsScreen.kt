@@ -71,40 +71,21 @@ fun MyEventsScreen(
             SmartEventList(
                 events = myEvents,
                 onEventClick = { id -> navController.navigate("event/$id") },
+                onProfileClick = { userId -> navController.navigate("user/$userId") },
                 headerContent = {
-                    item { Text("Events Hosted", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
-                },
-                // Custom Overlay with EDIT and DELETE buttons
-                cardOverlay = { event ->
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(8.dp)
-                    ) {
-                        // --- EDIT BUTTON ---
-                        IconButton(
-                            onClick = {
-                                eventToEdit = event // Set the event to pre-fill
-                                showCreateEventDialog = true
-                            },
-                            modifier = Modifier
-                                .padding(end = 8.dp) // Space between buttons
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                                .size(32.dp)
-                        ) {
-                            Icon(Icons.Default.Edit, "Edit", tint = Color.White, modifier = Modifier.size(18.dp))
-                        }
-
-                        // --- DELETE BUTTON ---
-                        IconButton(
-                            onClick = { eventToDelete = event },
-                            modifier = Modifier
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                                .size(32.dp)
-                        ) {
-                            Icon(Icons.Default.Delete, "Delete", tint = Color.White, modifier = Modifier.size(18.dp))
+                    item {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Events Hosted", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         }
                     }
+                },
+                showEditDelete = true,
+                onEdit = { event ->
+                    eventToEdit = event
+                    showCreateEventDialog = true
+                },
+                onDelete = { event ->
+                    eventToDelete = event
                 },
                 onReportSubmit = { eventId, reason ->
                     detailsViewModel.reportEvent(eventId, reason, context)
@@ -223,9 +204,12 @@ fun JoinedEventsScreen(
     SmartEventList(
         events = joinedEvents,
         onEventClick = { id -> navController.navigate("event/$id") },
+        onProfileClick = { userId -> navController.navigate("user/$userId") },
         headerContent = {
             item {
-                Text("Events Joined", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Events Joined", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                }
             }
         },
         onReportSubmit = { eventId, reason ->

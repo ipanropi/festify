@@ -1,8 +1,10 @@
 package com.cs407.festify.ui.theme.screens
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -35,10 +37,12 @@ fun HomeScreen(
     SmartEventList(
         events = events,
         onEventClick = { id -> navController.navigate("event/$id") },
+        onProfileClick = { userId -> navController.navigate("user/$userId") },
         headerContent = {
             item {
-                Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp))
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Discover Events", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = query,
@@ -48,7 +52,8 @@ fun HomeScreen(
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
                 )
 
-                Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(16.dp))
+                }
             }
         },
         onReportSubmit = { eventId, reason ->

@@ -37,6 +37,10 @@ fun SmartEventList(
     onReportSubmit: (eventId: String, reason: String) -> Unit,
     headerContent: (LazyListScope.() -> Unit)? = null,
     cardOverlay: @Composable (BoxScope.(Event) -> Unit)? = null,
+    showEditDelete: Boolean = false,
+    onEdit: (Event) -> Unit = {},
+    onDelete: (Event) -> Unit = {},
+    onProfileClick: (String) -> Unit = {},
     detailsViewModel: EventDetailsViewModel = hiltViewModel()
 ) {
     // --- SHARED REPORTING STATE ---
@@ -46,8 +50,8 @@ fun SmartEventList(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(0.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         // 1. Render Header
         if (headerContent != null) {
@@ -60,6 +64,7 @@ fun SmartEventList(
                 Box(
                     modifier = Modifier
                         .fillParentMaxSize()
+                        .padding(16.dp)
                         .height(200.dp), // Height constraint prevents layout crash
                     contentAlignment = Alignment.Center
                 ) {
@@ -76,7 +81,11 @@ fun SmartEventList(
                         onReport = {
                             eventIdToReport = event.id
                             showReportDialog = true
-                        }
+                        },
+                        showEditDelete = showEditDelete,
+                        onEdit = { onEdit(event) },
+                        onDelete = { onDelete(event) },
+                        onProfileClick = onProfileClick
                     )
 
                     // Render custom overlay (like Delete button)
@@ -109,100 +118,198 @@ fun SmartEventList(
 fun EventCard(
     event: Event,
     onClick: (String) -> Unit = {},
-    onReport: () -> Unit = {}
+    onReport: () -> Unit = {},
+    showEditDelete: Boolean = false,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onProfileClick: (String) -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick(event.id) },
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+            .clickable { onClick(event.id) }
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Box {
-            Column {
-                // IMAGE
-                if (event.imageUrl.isNullOrEmpty()) {
-                    Box(Modifier.fillMaxWidth().height(180.dp).background(Color.Gray))
-                } else {
-                    AsyncImage(
-                        model = event.imageUrl,
-                        contentDescription = event.title,
-                        modifier = Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+        // TOP LAYER - Profile, Username, and Menu
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Profile Picture and Username
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onProfileClick(event.hostId) }
+                ) {
+                    // Profile Picture or Initials
+                    if (event.hostAvatarUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = event.hostAvatarUrl,
+                            contentDescription = "Host Profile",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        // Show initials if no avatar
+                        val displayName = event.hostName.ifEmpty { "Unknown" }
+                        val initials = displayName
+                            .split(" ")
+                            .take(2)
+                            .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+                            .joinToString("")
+                            .ifEmpty { "?" }
 
-                // CONTENT
-                Column(modifier = Modifier.padding(16.dp)) {
-                    // Status & RSVP
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        StatusTag(event.computedStatus)
-                        if (event.userRsvp == "attending") {
-                            AssistChip(
-                                onClick = {},
-                                label = { Text("Attending") },
-                                colors = AssistChipDefaults.assistChipColors(labelColor = MaterialTheme.colorScheme.primary)
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = initials,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(event.title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                    // Vouch Row
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                    // Username
+                    Text(
+                        text = event.hostName.ifEmpty { "Unknown" },
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
+                }
+
+                // Vertical Menu Button
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "${event.vouchCount} Vouches",
-                            fontSize = 13.sp,
-                            color = Color.DarkGray
+                        Icon(
+                            Icons.Default.MoreVert,
+                            "Options",
+                            modifier = Modifier.size(20.dp),
+                            tint = Color.Black
                         )
                     }
 
-                    // Details
-                    Text("${event.date} · ${event.time}", fontSize = 14.sp, color = Color.Gray)
-                    Text(event.location, fontSize = 14.sp, color = Color.Gray)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(event.description, fontSize = 13.sp, maxLines = 2)
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        if (showEditDelete) {
+                            // Edit option for event host
+                            DropdownMenuItem(
+                                text = { Text("Edit") },
+                                onClick = {
+                                    showMenu = false
+                                    onEdit()
+                                },
+                                leadingIcon = { Icon(Icons.Default.Edit, null) }
+                            )
+                            // Delete option for event host
+                            DropdownMenuItem(
+                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                },
+                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
+                            )
+                        }
+                        // Report option (always available)
+                        DropdownMenuItem(
+                            text = { Text("Report", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showMenu = false
+                                onReport()
+                            },
+                            leadingIcon = { Icon(Icons.Default.Flag, null, tint = MaterialTheme.colorScheme.error) }
+                        )
+                    }
                 }
             }
 
-            // REPORT MENU (Overlay)
+        // IMAGE (Full width, no rounded corners)
+        if (event.imageUrl.isNullOrEmpty()) {
             Box(
-                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
-            ) {
-                IconButton(
-                    onClick = { showMenu = true },
-                    modifier = Modifier.size(32.dp).background(Color.White.copy(alpha = 0.9f), CircleShape)
+                Modifier
+                    .fillMaxWidth()
+                    .height(400.dp)
+                    .background(Color.LightGray)
+            )
+        } else {
+            AsyncImage(
+                model = event.imageUrl,
+                contentDescription = event.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(400.dp),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // CONTENT
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                // Status & RSVP
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.MoreVert, "Options", modifier = Modifier.size(20.dp), tint = Color.Black)
+                    StatusTag(event.computedStatus)
+                    if (event.userRsvp == "attending") {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("Attending") },
+                            colors = AssistChipDefaults.assistChipColors(labelColor = MaterialTheme.colorScheme.primary)
+                        )
+                    }
                 }
 
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text("Report", color = MaterialTheme.colorScheme.error) },
-                        onClick = { showMenu = false; onReport() },
-                        leadingIcon = { Icon(Icons.Default.Flag, null, tint = MaterialTheme.colorScheme.error) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Share Event") },
-                        onClick = { showMenu = false; shareEvent(context, event) },
-                        leadingIcon = { Icon(Icons.Default.Share, null) }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(event.title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+                // Vouch Row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Star, null, tint = Color(0xFFFFC107), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "${event.vouchCount} Vouches",
+                        fontSize = 13.sp,
+                        color = Color.DarkGray
                     )
                 }
-            }
+
+            // Details
+            Text("${event.date} · ${event.time}", fontSize = 14.sp, color = Color.Gray)
+            Text(event.location, fontSize = 14.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(event.description, fontSize = 13.sp, maxLines = 2)
         }
+
+        // Divider at the bottom for separation
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalDivider(
+            modifier = Modifier.fillMaxWidth(),
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        )
     }
 }
 
