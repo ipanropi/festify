@@ -32,7 +32,9 @@ data class Event(
     val category: String = "",
     val isPublic: Boolean = true,
     val tags: List<String> = emptyList(),
-    val vouchCount: Int = 0
+    val vouchCount: Int = 0,
+    val checkInCount: Int = 0,        // Unique users checked in
+    val totalCheckIns: Int = 0        // Total check-ins (including duplicates)
 )
 
 /**

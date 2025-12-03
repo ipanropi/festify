@@ -33,10 +33,12 @@ import com.cs407.festify.ui.theme.screens.LoginScreen
 import com.cs407.festify.ui.theme.FestifyTheme
 import com.cs407.festify.ui.theme.LocalDarkMode
 import com.cs407.festify.ui.theme.screens.MyEventsTabScreen
+import com.cs407.festify.ui.theme.screens.EventDetailsScreen
+import com.cs407.festify.ui.theme.screens.QRCodeDisplayScreen
+import com.cs407.festify.ui.theme.screens.QRScannerScreen
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
-import com.cs407.festify.ui.theme.screens.EventDetailsScreen
 
 
 sealed class Screen(val route: String, val title: String) {
@@ -158,6 +160,23 @@ fun FestifyApp() {
                     eventId = eventId,
                     navController = navController
                 )
+            }
+
+            // QR Code Display (for hosts)
+            composable(
+                route = "qr-display/{eventId}",
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
+                QRCodeDisplayScreen(
+                    eventId = eventId,
+                    navController = navController
+                )
+            }
+
+            // QR Scanner (for attendees)
+            composable("qr-scanner") {
+                QRScannerScreen(navController = navController)
             }
         }
     }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.cs407.festify.data.model.Event
 import com.cs407.festify.data.remote.FirestoreCollections
 import com.cs407.festify.data.repository.EventRepository
+import com.cs407.festify.data.repository.CheckInStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,11 @@ class EventDetailsViewModel @Inject constructor(
     private val _isVouched = MutableStateFlow(false)
     val isVouched: StateFlow<Boolean> = _isVouched.asStateFlow()
 
+    private val _checkInStatus = MutableStateFlow<CheckInStatus>(
+        CheckInStatus.NotCheckedIn
+    )
+    val checkInStatus: StateFlow<CheckInStatus> = _checkInStatus.asStateFlow()
+
     fun loadEvent(eventId: String) {
         viewModelScope.launch {
             // 1. Load Event Data
@@ -35,16 +41,27 @@ class EventDetailsViewModel @Inject constructor(
             }
 
             // 2. Start listening to the RSVP status
-            repository.getUserRsvpStatus(eventId).collect { status ->
-                _userRsvpStatus.value = status ?: "not_attending"
+            launch {
+                repository.getUserRsvpStatus(eventId).collect { status ->
+                    _userRsvpStatus.value = status ?: "not_attending"
+                }
             }
 
             // 3. Check if I vouched
-            repository.hasUserVouched(eventId).collect { vouched ->
-                // ONLY update if the UI isn't already "ahead" of the server
-                // This prevents the "reset to 0" flicker
-                if (_isVouched.value != vouched) {
-                    _isVouched.value = vouched
+            launch {
+                repository.hasUserVouched(eventId).collect { vouched ->
+                    // ONLY update if the UI isn't already "ahead" of the server
+                    // This prevents the "reset to 0" flicker
+                    if (_isVouched.value != vouched) {
+                        _isVouched.value = vouched
+                    }
+                }
+            }
+
+            // 4. Load check-in status
+            launch {
+                repository.getUserCheckInStatus(eventId).collect { status ->
+                    _checkInStatus.value = status
                 }
             }
         }
