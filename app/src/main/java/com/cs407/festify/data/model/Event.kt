@@ -34,18 +34,21 @@ data class Event(
     @get:PropertyName("isPublic")
     val isPublic: Boolean = true,
     val tags: List<String> = emptyList(),
-    val vouchCount: Int = 0
+    val vouchCount: Int = 0,
+    val checkInCount: Int = 0,        // Unique users checked in
+    val totalCheckIns: Int = 0        // Total check-ins (including duplicates)
 ) {
+
     val computedStatus: String
         get() {
-
+            // If user manually sets cancelled → always cancelled
             if (status.lowercase() == "cancelled") return "cancelled"
 
-            // 2. If no date, default to upcoming
+            // No start date → upcoming
             if (startDateTime == null) return "upcoming"
 
-            // 3. Compare with NOW
             val now = Timestamp.now()
+
             return if (startDateTime.seconds < now.seconds) {
                 "past"
             } else {
