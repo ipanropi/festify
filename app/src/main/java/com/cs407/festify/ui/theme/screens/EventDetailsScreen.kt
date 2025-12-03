@@ -28,9 +28,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.cs407.festify.data.model.Event
+import com.cs407.festify.data.repository.CheckInStatus
 import com.cs407.festify.ui.theme.screens.components.ReportDialog
 import com.cs407.festify.ui.theme.screens.components.StatusTag
 import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun EventDetailsScreen(
@@ -76,6 +78,10 @@ fun EventDetailsContent(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Chat", "Map", "Photos")
     val context = LocalContext.current
+    val checkInStatus by viewModel.checkInStatus.collectAsState()
+
+    // Get current user ID to check if user is host
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
     // Dialog States
     var showMenu by remember { mutableStateOf(false) }
@@ -195,6 +201,118 @@ fun EventDetailsContent(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(if (isAttending) "Not Going (Cancel)" else "Going")
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // QR Code Check-In Section
+            val isHost = currentUserId == event.hostId
+
+            if (isHost) {
+                // Host view: Show QR Code button
+                Button(
+                    onClick = { navController.navigate("qr-display/${event.id}") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.QrCode, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Show Check-In QR Code")
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Check-in stats card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Total Check-Ins", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                "${event.totalCheckIns}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Unique Attendees", style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                "${event.checkInCount}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            } else if (isAttending) {
+                // Attendee view: Scan QR button
+                OutlinedButton(
+                    onClick = { navController.navigate("qr-scanner") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Scan to Check In")
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Check-in status display
+                when (val status = checkInStatus) {
+                    is CheckInStatus.CheckedIn -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4CAF50)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        "Checked In (${status.count}x)",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF4CAF50)
+                                    )
+                                    status.lastCheckInAt?.let {
+                                        val timeFormat = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
+                                        Text(
+                                            "Last: ${timeFormat.format(it.toDate())}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    is CheckInStatus.NotCheckedIn -> {
+                        // Don't show anything if not checked in
+                    }
+                }
             }
 
             Spacer(Modifier.height(16.dp))

@@ -34,6 +34,10 @@ data class Event(
     @get:PropertyName("isPublic")
     val isPublic: Boolean = true,
     val tags: List<String> = emptyList(),
+    val vouchCount: Int = 0,
+    val checkInCount: Int = 0,        // Unique users checked in
+    val totalCheckIns: Int = 0        // Total check-ins (including duplicates)
+)
     val vouchCount: Int = 0
 ) {
     val computedStatus: String

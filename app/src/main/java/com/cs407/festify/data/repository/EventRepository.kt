@@ -1,8 +1,10 @@
 package com.cs407.festify.data.repository
 
 import com.cs407.festify.data.model.Attendee
+import com.cs407.festify.data.model.CheckIn
 import com.cs407.festify.data.model.Event
 import com.cs407.festify.data.remote.FirestoreCollections
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
@@ -522,8 +524,74 @@ class EventRepository @Inject constructor(
         }.await()
     }
 
-    // In data/repository/EventRepository.kt
+    /**
+     * Check in to an event - allows multiple check-ins
+     * @param eventId The event ID to check in to
+     * @return Result indicating success or failure
+     */
+    suspend fun checkInToEvent(eventId: String): Result<Unit> {
+        return try {
+            val userId = currentUserId ?: return Result.failure(Exception("No user signed in"))
+            val userName = currentUserName ?: "Unknown"
 
+            // Check if last check-in was less than 30 seconds ago (rate limiting)
+            val userCheckInRef = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection(FirestoreCollections.User.CHECK_INS)
+                .document(eventId)
+                .get()
+                .await()
+
+            if (userCheckInRef.exists()) {
+                val lastCheckIn = userCheckInRef.getTimestamp(FirestoreCollections.Fields.LAST_CHECK_IN_AT)
+                if (lastCheckIn != null) {
+                    val timeSinceLastCheckIn = System.currentTimeMillis() - lastCheckIn.toDate().time
+                    if (timeSinceLastCheckIn < 30_000) { // 30 seconds
+                        return Result.failure(Exception("Please wait before checking in again"))
+                    }
+                }
+            }
+
+            // Get device info
+            val deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+
+            // Create check-in document
+            val checkInData = hashMapOf(
+                FirestoreCollections.Fields.USER_ID to userId,
+                "userName" to userName,
+                FirestoreCollections.Fields.EVENT_ID to eventId,
+                FirestoreCollections.Fields.TIMESTAMP to FieldValue.serverTimestamp(),
+                FirestoreCollections.Fields.DEVICE_INFO to deviceInfo
+            )
+
+            // Add to events/{eventId}/checkIns collection
+            firestore.collection(FirestoreCollections.EVENTS)
+                .document(eventId)
+                .collection(FirestoreCollections.Event.CHECK_INS)
+                .add(checkInData)
+                .await()
+
+            // Update event's total check-in count
+            firestore.collection(FirestoreCollections.EVENTS)
+                .document(eventId)
+                .update(FirestoreCollections.Fields.TOTAL_CHECK_INS, FieldValue.increment(1))
+                .await()
+
+            // Update user's check-in tracking
+            updateUserCheckInTracking(userId, eventId)
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Report an event for review
+     * @param eventId The event ID to report
+     * @param reason The reason for reporting
+     * @return Result indicating success or failure
+     */
     suspend fun reportEvent(eventId: String, reason: String): Result<Unit> {
         return try {
             val report = hashMapOf(
@@ -537,15 +605,109 @@ class EventRepository @Inject constructor(
             // Create a new collection called "reports" automatically
             firestore.collection("reports").add(report).await()
             Result.success(Unit)
-
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
+    /**
+     * Update user's check-in tracking for an event
+     */
+    private suspend fun updateUserCheckInTracking(userId: String, eventId: String) {
+        val userCheckInRef = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection(FirestoreCollections.User.CHECK_INS)
+            .document(eventId)
 
+        firestore.runTransaction { transaction ->
+            val snapshot = transaction.get(userCheckInRef)
 
+            if (snapshot.exists()) {
+                // Increment count
+                transaction.update(
+                    userCheckInRef,
+                    FirestoreCollections.Fields.CHECK_IN_COUNT, FieldValue.increment(1),
+                    FirestoreCollections.Fields.LAST_CHECK_IN_AT, FieldValue.serverTimestamp()
+                )
+            } else {
+                // Create first check-in
+                transaction.set(userCheckInRef, hashMapOf(
+                    FirestoreCollections.Fields.EVENT_ID to eventId,
+                    FirestoreCollections.Fields.CHECK_IN_COUNT to 1,
+                    FirestoreCollections.Fields.LAST_CHECK_IN_AT to FieldValue.serverTimestamp()
+                ))
+            }
+        }.await()
+    }
 
+    /**
+     * Get all check-ins for an event (for hosts)
+     * @param eventId The event ID
+     * @return Flow of check-ins list
+     */
+    fun getEventCheckIns(eventId: String): Flow<Result<List<CheckIn>>> = callbackFlow {
+        val listener = firestore.collection(FirestoreCollections.EVENTS)
+            .document(eventId)
+            .collection(FirestoreCollections.Event.CHECK_INS)
+            .orderBy(FirestoreCollections.Fields.TIMESTAMP, Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Result.failure(error))
+                    return@addSnapshotListener
+                }
+
+                val checkIns = snapshot?.documents?.mapNotNull {
+                    it.toObject(CheckIn::class.java)
+                } ?: emptyList()
+
+                trySend(Result.success(checkIns))
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * Get user's check-in status for an event
+     * @param eventId The event ID
+     * @return Flow of check-in status
+     */
+    fun getUserCheckInStatus(eventId: String): Flow<CheckInStatus> = callbackFlow {
+        val userId = currentUserId ?: run {
+            trySend(CheckInStatus.NotCheckedIn)
+            close()
+            return@callbackFlow
+        }
+
+        val listener = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection(FirestoreCollections.User.CHECK_INS)
+            .document(eventId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(CheckInStatus.NotCheckedIn)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    val count = snapshot.getLong(FirestoreCollections.Fields.CHECK_IN_COUNT)?.toInt() ?: 0
+                    val lastCheckIn = snapshot.getTimestamp(FirestoreCollections.Fields.LAST_CHECK_IN_AT)
+                    trySend(CheckInStatus.CheckedIn(count, lastCheckIn))
+                } else {
+                    trySend(CheckInStatus.NotCheckedIn)
+                }
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+}
+
+/**
+ * Check-in status for a user and event
+ */
+sealed class CheckInStatus {
+    object NotCheckedIn : CheckInStatus()
+    data class CheckedIn(val count: Int, val lastCheckInAt: Timestamp?) : CheckInStatus()
 }
 
 

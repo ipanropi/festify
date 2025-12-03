@@ -17,12 +17,14 @@ object FirestoreCollections {
         const val ACHIEVEMENTS = "achievements"
         const val RSVPS = "rsvps"
         const val HOSTED_EVENTS = "hostedEvents"
+        const val CHECK_INS = "checkIns"
     }
 
     // Event Subcollections
     object Event {
         const val ATTENDEES = "attendees"
         const val MESSAGES = "messages"
+        const val CHECK_INS = "checkIns"
     }
 
     // Field Names
@@ -72,6 +74,13 @@ object FirestoreCollections {
         const val USER_ID = "userId"
         const val RSVP_STATUS = "status"
         const val RSVP_DATE = "rsvpDate"
+
+        // Check-in Fields
+        const val CHECK_IN_COUNT = "checkInCount"
+        const val TOTAL_CHECK_INS = "totalCheckIns"
+        const val DEVICE_INFO = "deviceInfo"
+        const val LAST_CHECK_IN_AT = "lastCheckInAt"
+        const val ALL_CHECK_INS = "allCheckIns"
 
         // Chat Fields
         const val EVENT_NAME = "eventName"
