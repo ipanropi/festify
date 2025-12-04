@@ -125,6 +125,7 @@ class MyEventsViewModel @Inject constructor(
 
                     if (result.isSuccess) {
                         val newEventId = result.getOrNull()
+                        println("Event created successfully: $newEventId")
                         if (newEventId != null) {
                             val confirmedEvent = newEvent.copy(id = newEventId)
                             _myEvents.value = listOf(confirmedEvent) +
@@ -222,6 +223,22 @@ class MyEventsViewModel @Inject constructor(
             if (result.isFailure) {
                 // Revert on failure
                 observeMyEvents()
+            }
+        }
+    }
+
+    /**
+     * Run migration to update all events with missing host information
+     */
+    fun runHostInfoMigration() {
+        viewModelScope.launch {
+            println("Starting host info migration...")
+            val result = eventRepository.migrateEventHostInfo()
+            if (result.isSuccess) {
+                val updatedCount = result.getOrNull() ?: 0
+                println("Migration completed! Updated $updatedCount events")
+            } else {
+                println("Migration failed: ${result.exceptionOrNull()?.message}")
             }
         }
     }

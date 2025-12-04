@@ -26,6 +26,7 @@ data class Event(
     val userRsvp: String = "not_attending", // "attending", "maybe", "not_attending"
     val hostId: String = "",
     val hostName: String = "",
+    val hostAvatarUrl: String = "",
     @ServerTimestamp
     val createdAt: Timestamp? = null,
     @ServerTimestamp
@@ -170,4 +171,20 @@ data class Attendee(
     val status: String = "attending", // "attending", "maybe"
     @ServerTimestamp
     val joinedAt: Timestamp? = null
+)
+
+/**
+ * Friend request data model
+ */
+data class FriendRequest(
+    val id: String = "",
+    val senderId: String = "",
+    val senderName: String = "",
+    val senderAvatarUrl: String = "",
+    val receiverId: String = "",
+    val status: String = "pending", // "pending", "accepted", "declined"
+    @ServerTimestamp
+    val createdAt: Timestamp? = null,
+    @ServerTimestamp
+    val updatedAt: Timestamp? = null
 )

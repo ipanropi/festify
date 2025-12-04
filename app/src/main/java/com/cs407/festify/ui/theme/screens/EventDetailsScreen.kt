@@ -36,10 +36,14 @@ import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun EventDetailsScreen(
@@ -199,15 +203,64 @@ fun EventDetailsContent(
 
             // RSVP Button
             val isAttending = rsvpStatus == "attending"
+            val db = FirebaseFirestore.getInstance()
+            val user = FirebaseAuth.getInstance().currentUser
+            val coroutineScope = rememberCoroutineScope()
+
             Button(
-                onClick = { viewModel.toggleRsvp(event.id) },
+                onClick = {
+                    coroutineScope.launch {
+                        val wasAttending = (rsvpStatus == "attending")
+
+                        // Toggle RSVP in the ViewModel
+                        viewModel.toggleRsvp(event.id)
+
+                        // Wait briefly to allow state to update (optional delay if Flow is async)
+                        delay(400)
+
+                        if (!wasAttending && user != null) {
+                            // User just joined the event → add them to chat
+                            val chatRef = db.collection("chats").document(event.id)
+                            chatRef.get().addOnSuccessListener { doc ->
+                                if (doc.exists()) {
+                                    chatRef.update(
+                                        mapOf(
+                                            "participantIds" to FieldValue.arrayUnion(user.uid),
+                                            "participantCount" to FieldValue.increment(1)
+                                        )
+                                    )
+                                } else {
+                                    // Create chat if missing
+                                    chatRef.set(
+                                        mapOf(
+                                            "eventId" to event.id,
+                                            "eventName" to event.title,
+                                            "participantIds" to listOf(user.uid),
+                                            "participantCount" to 1,
+                                            "lastMessage" to "Welcome to ${event.title}! 🎉",
+                                            "lastMessageSender" to "System",
+                                            "lastMessageTime" to com.google.firebase.Timestamp.now()
+                                        )
+                                    )
+                                }
+                            }
+                        } else if (wasAttending && user != null) {
+                            // User cancelled → remove from chat participants
+                            db.collection("chats").document(event.id)
+                                .update("participantIds", FieldValue.arrayRemove(user.uid))
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isAttending) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    containerColor = if (rsvpStatus == "attending")
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.primary
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(if (isAttending) "Not Going (Cancel)" else "Going")
+                Text(if (rsvpStatus == "attending") "Not Going (Cancel)" else "Going")
             }
 
             Spacer(Modifier.height(12.dp))
@@ -356,7 +409,7 @@ fun EventDetailsContent(
         ReportDialog(
             onDismiss = { showReportDialog = false },
             onSubmit = { reason ->
-                 viewModel.reportEvent(event.id, reason, context)
+                viewModel.reportEvent(event.id, reason, context)
                 showReportDialog = false
             }
         )
