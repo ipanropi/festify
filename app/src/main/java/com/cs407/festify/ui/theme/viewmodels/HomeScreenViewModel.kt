@@ -48,8 +48,25 @@ class HomeScreenViewModel @Inject constructor(
         }
     }
 
+
+
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+    }
+
+
+    /**
+     * Process a report and delete the event
+     */
+    fun processReportAndDelete(eventId: String) {
+        viewModelScope.launch {
+            // 1. Remove the event
+            val deleteResult = eventRepository.adminDeleteEvent(eventId)
+
+            if (deleteResult.isSuccess) {
+
+            }
+        }
     }
 }
 
