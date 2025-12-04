@@ -6,6 +6,7 @@ import com.cs407.festify.data.model.UserSettings
 import com.cs407.festify.data.remote.FirestoreCollections
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -153,6 +154,70 @@ class AuthRepository @Inject constructor(
                         onFailure("Sign-in failed: ${signInException.message}. Account creation also failed: ${createException.message}")
                     }
             }
+    }
+
+    /**
+     * Sign in with Google using ID token
+     * Creates user profile in Firestore if it doesn't exist
+     */
+    suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser> {
+        return try {
+            val credential = GoogleAuthProvider.getCredential(idToken, null)
+            val authResult = auth.signInWithCredential(credential).await()
+            val firebaseUser = authResult.user
+                ?: return Result.failure(Exception("Google sign-in failed"))
+
+            // Check if user profile exists in Firestore
+            val userDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(firebaseUser.uid)
+                .get()
+                .await()
+
+            // If user doesn't exist, create profile
+            if (!userDoc.exists()) {
+                val email = firebaseUser.email ?: ""
+                val name = firebaseUser.displayName ?: email.substringBefore("@")
+                val initials = name.split(" ")
+                    .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+                    .joinToString("")
+                    .take(2)
+
+                val photoUrl = firebaseUser.photoUrl?.toString() ?: ""
+
+                val userProfile = hashMapOf(
+                    FirestoreCollections.Fields.EMAIL to email,
+                    FirestoreCollections.Fields.NAME to name,
+                    FirestoreCollections.Fields.INITIALS to initials,
+                    FirestoreCollections.Fields.EVENTS_ATTENDED to 0,
+                    FirestoreCollections.Fields.EVENTS_HOSTED to 0,
+                    FirestoreCollections.Fields.RATING to 0.0,
+                    FirestoreCollections.Fields.UPCOMING_EVENTS to 0,
+                    FirestoreCollections.Fields.CONNECTIONS to 0,
+                    FirestoreCollections.Fields.CREATED_AT to FieldValue.serverTimestamp(),
+                    FirestoreCollections.Fields.UPDATED_AT to FieldValue.serverTimestamp(),
+                    "settings" to hashMapOf(
+                        "darkMode" to false,
+                        "pushNotifications" to true,
+                        "notifications" to true,
+                        "locationServices" to false
+                    ),
+                    "profile" to hashMapOf(
+                        "bio" to "",
+                        "avatarUrl" to photoUrl,
+                        "phoneNumber" to ""
+                    )
+                )
+
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(firebaseUser.uid)
+                    .set(userProfile)
+                    .await()
+            }
+
+            Result.success(firebaseUser)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     /**

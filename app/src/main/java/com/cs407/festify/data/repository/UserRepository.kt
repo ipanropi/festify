@@ -5,6 +5,7 @@ import com.cs407.festify.data.model.Rsvp
 import com.cs407.festify.data.model.User
 import com.cs407.festify.data.remote.FirestoreCollections
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
@@ -738,6 +739,76 @@ class UserRepository @Inject constructor(
             }
 
         awaitClose { listener.remove() }
+    }
+
+    /**
+     * Get friends list with full user details for any user
+     */
+    fun getFriendsWithDetails(userId: String): Flow<Result<List<User>>> = callbackFlow {
+        val listener = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection("friends")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Result.failure(error))
+                    return@addSnapshotListener
+                }
+
+                val friendIds = snapshot?.documents?.mapNotNull { it.id } ?: emptyList()
+
+                println(">>> Friends subcollection has ${friendIds.size} friends: $friendIds")
+
+                // Fetch full user details for each friend
+                if (friendIds.isEmpty()) {
+                    trySend(Result.success(emptyList()))
+                } else {
+                    // Fetch all friends' profiles using document ID
+                    firestore.collection(FirestoreCollections.USERS)
+                        .whereIn(FieldPath.documentId(), friendIds)
+                        .get()
+                        .addOnSuccessListener { usersSnapshot ->
+                            val friends = usersSnapshot.documents.mapNotNull { doc ->
+                                doc.toObject(User::class.java)?.copy(id = doc.id)
+                            }
+                            println(">>> Fetched ${friends.size} friend profiles")
+                            trySend(Result.success(friends))
+                        }
+                        .addOnFailureListener { exception ->
+                            println(">>> Failed to fetch friend profiles: ${exception.message}")
+                            trySend(Result.failure(exception))
+                        }
+                }
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * Sync connections count with actual friends count
+     */
+    suspend fun syncConnectionsCount(userId: String): Result<Int> {
+        return try {
+            // Count friends in subcollection
+            val friendsSnapshot = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection("friends")
+                .get()
+                .await()
+
+            val actualCount = friendsSnapshot.size()
+
+            // Update the connections field
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .update(FirestoreCollections.Fields.CONNECTIONS, actualCount)
+                .await()
+
+            println(">>> Synced connections count for $userId: $actualCount")
+            Result.success(actualCount)
+        } catch (e: Exception) {
+            println(">>> Failed to sync connections count: ${e.message}")
+            Result.failure(e)
+        }
     }
 
     /**

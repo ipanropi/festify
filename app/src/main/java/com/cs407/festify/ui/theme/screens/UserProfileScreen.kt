@@ -121,7 +121,13 @@ fun UserProfileScreen(
                 ) {
                     StatItem("Events Attended", user!!.eventsAttended.toString())
                     StatItem("Events Hosted", user!!.eventsHosted.toString())
-                    StatItem("Connections", user!!.connections.toString())
+                    StatItem(
+                        "Connections",
+                        user!!.connections.toString(),
+                        onClick = {
+                            navController.navigate("friends/$userId")
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -262,9 +268,10 @@ fun UserProfileScreen(
 }
 
 @Composable
-fun StatItem(label: String, value: String) {
+fun StatItem(label: String, value: String, onClick: (() -> Unit)? = null) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
     ) {
         Text(
             text = value,

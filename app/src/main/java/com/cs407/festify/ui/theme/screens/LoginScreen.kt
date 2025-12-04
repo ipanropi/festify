@@ -1,5 +1,9 @@
 package com.cs407.festify.ui.theme.screens
 
+import android.app.Activity
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -42,11 +47,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.cs407.festify.R
 import com.cs407.festify.data.repository.EmailResult
 import com.cs407.festify.data.repository.PasswordResult
 import com.cs407.festify.data.repository.validateEmail
 import com.cs407.festify.data.repository.validatePassword
 import com.cs407.festify.ui.theme.viewmodels.LoginViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 
 @Composable
 fun ErrorText(error: String?, modifier: Modifier = Modifier) {
@@ -65,10 +74,41 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val authRepository = viewModel.authRepository
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Google Sign-In launcher
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                val idToken = account?.idToken
+                if (idToken != null) {
+                    viewModel.signInWithGoogle(
+                        idToken = idToken,
+                        onSuccess = {
+                            errorMessage = null
+                            onLoginSuccess()
+                        },
+                        onFailure = { error ->
+                            errorMessage = error
+                        }
+                    )
+                } else {
+                    errorMessage = "Google sign-in failed: No ID token"
+                }
+            } catch (e: ApiException) {
+                errorMessage = "Google sign-in failed: ${e.message}"
+                Log.e("LoginScreen", "Google sign-in failed", e)
+            }
+        }
+    }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         Box(
@@ -217,7 +257,18 @@ fun LoginScreen(
                     }
 
                     OutlinedButton(
-                        onClick = { /* TODO: Implement Google Sign-In */ },
+                        onClick = {
+                            // Configure Google Sign-In
+                            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestIdToken(context.getString(R.string.default_web_client_id))
+                                .requestEmail()
+                                .build()
+
+                            val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                            googleSignInClient.signOut() // Sign out first to force account picker
+                            val signInIntent = googleSignInClient.signInIntent
+                            googleSignInLauncher.launch(signInIntent)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.medium,
                         border = BorderStroke(1.dp, Color(0xFFB0B0B0)),
@@ -228,12 +279,12 @@ fun LoginScreen(
                     ) {
                         androidx.compose.material3.Icon(
                             imageVector = Icons.Default.Android,
-                            contentDescription = "Google Sign-In Placeholder",
+                            contentDescription = "Google Sign-In",
                             tint = Color(0xFF555555)
                         )
                         Spacer(modifier = Modifier.widthIn(min = 8.dp))
                         Text(
-                            text = "Continue with Google (coming soon)",
+                            text = "Continue with Google",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

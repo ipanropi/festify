@@ -36,6 +36,9 @@ class UserProfileViewModel @Inject constructor(
             _isLoading.value = true
 
             try {
+                // Sync connections count first
+                userRepository.syncConnectionsCount(userId)
+
                 // Load user profile
                 val userResult = userRepository.getUserProfile(userId)
                 if (userResult.isSuccess) {

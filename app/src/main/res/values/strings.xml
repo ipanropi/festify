@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">festify</string>
     <string name="image_placeholder">https://images.unsplash.com/photo-1551836022-4c4c79ecde51</string>
+
+    <!-- Google Sign-In Web Client ID -->
+    <!-- Extracted from google-services.json oauth_client with client_type: 3 -->
+    <string name="default_web_client_id">1044668500825-ok8pk8lr7aorn11rs87so8irem9dbp4f.apps.googleusercontent.com</string>
 </resources>

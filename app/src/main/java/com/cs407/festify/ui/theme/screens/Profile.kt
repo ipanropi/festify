@@ -39,11 +39,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.cs407.festify.ui.theme.LocalDarkMode
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.foundation.clickable
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
+fun ProfileScreen(
+    navController: NavController,
+    viewModel: ProfileViewModel = hiltViewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
     val darkMode = LocalDarkMode.current
@@ -196,7 +202,14 @@ fun ProfileScreen(viewModel: ProfileViewModel = hiltViewModel()) {
                 icon = Icons.Outlined.Person,
                 contentdesc = "Person",
                 useSecondary = true,
-                isDark = isDark
+                isDark = isDark,
+                onClick = {
+                    // Navigate to friends list with current user's ID
+                    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+                    if (currentUserId != null) {
+                        navController.navigate("friends/$currentUserId")
+                    }
+                }
             )
         }
 
@@ -396,7 +409,8 @@ fun InfoCard(
     icon: ImageVector,
     contentdesc: String,
     useSecondary: Boolean = false,
-    isDark: Boolean
+    isDark: Boolean,
+    onClick: (() -> Unit)? = null
 ) {
     val containerColor = if (useSecondary) {
         MaterialTheme.colorScheme.secondaryContainer
@@ -405,7 +419,9 @@ fun InfoCard(
     }
 
     Card(
-        modifier = modifier.height(120.dp),
+        modifier = modifier
+            .height(120.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(
