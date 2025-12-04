@@ -9,6 +9,7 @@ import com.cs407.festify.data.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -34,27 +35,53 @@ class UserProfileViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
 
-            // Load user profile
-            val userResult = userRepository.getUserProfile(userId)
-            if (userResult.isSuccess) {
-                _user.value = userResult.getOrNull()
-            }
+            try {
+                // Load user profile
+                val userResult = userRepository.getUserProfile(userId)
+                if (userResult.isSuccess) {
+                    _user.value = userResult.getOrNull()
+                } else {
+                    println("Error loading user profile: ${userResult.exceptionOrNull()?.message}")
+                }
 
-            // Check friendship status
-            val statusResult = userRepository.checkFriendshipStatus(userId)
-            if (statusResult.isSuccess) {
-                _friendshipStatus.value = statusResult.getOrNull() ?: "none"
-            }
+                _isLoading.value = false
 
-            _isLoading.value = false
-
-            // Load hosted events in a separate coroutine (continuous Flow)
-            viewModelScope.launch {
-                eventRepository.getEventsByHostId(userId).collect { result ->
-                    result.onSuccess { events ->
-                        _hostedEvents.value = events
+                // Listen to friendship status changes in real-time
+                viewModelScope.launch {
+                    try {
+                        userRepository.getFriendshipStatusFlow(userId).collect { result ->
+                            result.onSuccess { status ->
+                                _friendshipStatus.value = status
+                            }.onFailure { error ->
+                                println("Error checking friendship status: ${error.message}")
+                                _friendshipStatus.value = "none"
+                            }
+                        }
+                    } catch (e: Exception) {
+                        println("Exception checking friendship status: ${e.message}")
+                        _friendshipStatus.value = "none"
                     }
                 }
+
+                // Load hosted events in a separate coroutine (continuous Flow)
+                viewModelScope.launch {
+                    try {
+                        eventRepository.getEventsByHostId(userId).collect { result ->
+                            result.onSuccess { events ->
+                                _hostedEvents.value = events
+                            }.onFailure { error ->
+                                println("Error loading hosted events: ${error.message}")
+                                _hostedEvents.value = emptyList()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        println("Exception loading hosted events: ${e.message}")
+                        _hostedEvents.value = emptyList()
+                    }
+                }
+            } catch (e: Exception) {
+                println("Exception in loadUserProfile: ${e.message}")
+                _isLoading.value = false
             }
         }
     }
@@ -68,22 +95,43 @@ class UserProfileViewModel @Inject constructor(
         }
     }
 
-    fun acceptFriendRequest(userId: String) {
+    fun cancelFriendRequest(userId: String) {
         viewModelScope.launch {
-            val requestId = "${userId}_${userRepository.getUserProfile(userId).getOrNull()?.id}"
-            val result = userRepository.acceptFriendRequest(requestId)
+            val result = userRepository.cancelFriendRequest(userId)
             if (result.isSuccess) {
-                _friendshipStatus.value = "friends"
+                _friendshipStatus.value = "none"
             }
         }
     }
 
-    fun declineFriendRequest(userId: String) {
+    fun acceptFriendRequest(senderId: String) {
         viewModelScope.launch {
-            val requestId = "${userId}_${userRepository.getUserProfile(userId).getOrNull()?.id}"
-            val result = userRepository.declineFriendRequest(requestId)
-            if (result.isSuccess) {
-                _friendshipStatus.value = "none"
+            // Get current user ID first
+            val currentUserResult = userRepository.getCurrentUserProfile().first()
+            if (currentUserResult.isSuccess) {
+                val currentUserId = currentUserResult.getOrNull()?.id ?: return@launch
+                // Request ID format: senderId_receiverId
+                val requestId = "${senderId}_${currentUserId}"
+                val result = userRepository.acceptFriendRequest(requestId)
+                if (result.isSuccess) {
+                    _friendshipStatus.value = "friends"
+                }
+            }
+        }
+    }
+
+    fun declineFriendRequest(senderId: String) {
+        viewModelScope.launch {
+            // Get current user ID first
+            val currentUserResult = userRepository.getCurrentUserProfile().first()
+            if (currentUserResult.isSuccess) {
+                val currentUserId = currentUserResult.getOrNull()?.id ?: return@launch
+                // Request ID format: senderId_receiverId
+                val requestId = "${senderId}_${currentUserId}"
+                val result = userRepository.declineFriendRequest(requestId)
+                if (result.isSuccess) {
+                    _friendshipStatus.value = "none"
+                }
             }
         }
     }

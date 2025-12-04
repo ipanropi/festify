@@ -397,26 +397,6 @@ class UserRepository @Inject constructor(
             val senderId = requestDoc.getString("senderId")
                 ?: return Result.failure(Exception("Invalid friend request"))
 
-            // Update request status to accepted
-            val updates = mapOf(
-                "status" to "accepted",
-                "updatedAt" to FieldValue.serverTimestamp()
-            )
-
-            firestore.collection(FirestoreCollections.USERS)
-                .document(userId)
-                .collection("friendRequests")
-                .document(requestId)
-                .update(updates)
-                .await()
-
-            firestore.collection(FirestoreCollections.USERS)
-                .document(senderId)
-                .collection("sentRequests")
-                .document(requestId)
-                .update(updates)
-                .await()
-
             // Add to both users' friends list
             val friendData = mapOf(
                 "userId" to senderId,
@@ -453,6 +433,31 @@ class UserRepository @Inject constructor(
                 .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(1))
                 .await()
 
+            // Delete the friend request documents now that they're friends
+            try {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .collection("friendRequests")
+                    .document(requestId)
+                    .delete()
+                    .await()
+            } catch (e: Exception) {
+                // Log but don't fail if deletion fails
+                println("Failed to delete friend request from receiver: ${e.message}")
+            }
+
+            try {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(senderId)
+                    .collection("sentRequests")
+                    .document(requestId)
+                    .delete()
+                    .await()
+            } catch (e: Exception) {
+                // Log but don't fail if deletion fails
+                println("Failed to delete sent request from sender: ${e.message}")
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -488,6 +493,37 @@ class UserRepository @Inject constructor(
 
             firestore.collection(FirestoreCollections.USERS)
                 .document(senderId)
+                .collection("sentRequests")
+                .document(requestId)
+                .delete()
+                .await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Cancel a friend request that you sent
+     */
+    suspend fun cancelFriendRequest(receiverId: String): Result<Unit> {
+        return try {
+            val userId = currentUserId
+                ?: return Result.failure(Exception("No user signed in"))
+
+            val requestId = "${userId}_${receiverId}"
+
+            // Delete the request from both users
+            firestore.collection(FirestoreCollections.USERS)
+                .document(receiverId)
+                .collection("friendRequests")
+                .document(requestId)
+                .delete()
+                .await()
+
+            firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
                 .collection("sentRequests")
                 .document(requestId)
                 .delete()
@@ -554,7 +590,7 @@ class UserRepository @Inject constructor(
                 return Result.success("friends")
             }
 
-            // Check if request already sent
+            // Check if request already sent (and still pending)
             val sentRequestId = "${userId}_${otherUserId}"
             val sentRequestDoc = firestore.collection(FirestoreCollections.USERS)
                 .document(userId)
@@ -563,11 +599,11 @@ class UserRepository @Inject constructor(
                 .get()
                 .await()
 
-            if (sentRequestDoc.exists()) {
+            if (sentRequestDoc.exists() && sentRequestDoc.getString("status") == "pending") {
                 return Result.success("request_sent")
             }
 
-            // Check if received request from this user
+            // Check if received request from this user (and still pending)
             val receivedRequestId = "${otherUserId}_${userId}"
             val receivedRequestDoc = firestore.collection(FirestoreCollections.USERS)
                 .document(userId)
@@ -576,7 +612,7 @@ class UserRepository @Inject constructor(
                 .get()
                 .await()
 
-            if (receivedRequestDoc.exists()) {
+            if (receivedRequestDoc.exists() && receivedRequestDoc.getString("status") == "pending") {
                 return Result.success("request_received")
             }
 
@@ -584,6 +620,124 @@ class UserRepository @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Get friendship status with another user as a Flow (real-time updates)
+     */
+    fun getFriendshipStatusFlow(otherUserId: String): Flow<Result<String>> = callbackFlow {
+        val userId = currentUserId
+        if (userId == null) {
+            trySend(Result.failure(Exception("No user signed in")))
+            close()
+            return@callbackFlow
+        }
+
+        if (userId == otherUserId) {
+            trySend(Result.success("self"))
+            close()
+            return@callbackFlow
+        }
+
+        // Listen to friends subcollection for this specific user
+        val friendListener = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection("friends")
+            .document(otherUserId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    // Don't send error, just continue checking other statuses
+                    return@addSnapshotListener
+                }
+
+                if (snapshot?.exists() == true) {
+                    trySend(Result.success("friends"))
+                    return@addSnapshotListener
+                }
+
+                // Check sent requests
+                val sentRequestId = "${userId}_${otherUserId}"
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .collection("sentRequests")
+                    .document(sentRequestId)
+                    .get()
+                    .addOnSuccessListener { sentDoc ->
+                        // Only show "request_sent" if the request is still pending
+                        if (sentDoc.exists() && sentDoc.getString("status") == "pending") {
+                            trySend(Result.success("request_sent"))
+                        } else {
+                            // Check received requests
+                            val receivedRequestId = "${otherUserId}_${userId}"
+                            firestore.collection(FirestoreCollections.USERS)
+                                .document(userId)
+                                .collection("friendRequests")
+                                .document(receivedRequestId)
+                                .get()
+                                .addOnSuccessListener { receivedDoc ->
+                                    // Only show "request_received" if the request is still pending
+                                    if (receivedDoc.exists() && receivedDoc.getString("status") == "pending") {
+                                        trySend(Result.success("request_received"))
+                                    } else {
+                                        trySend(Result.success("none"))
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    // If checking received requests fails, default to none
+                                    trySend(Result.success("none"))
+                                }
+                        }
+                    }
+                    .addOnFailureListener {
+                        // If checking sent requests fails, try checking received requests
+                        val receivedRequestId = "${otherUserId}_${userId}"
+                        firestore.collection(FirestoreCollections.USERS)
+                            .document(userId)
+                            .collection("friendRequests")
+                            .document(receivedRequestId)
+                            .get()
+                            .addOnSuccessListener { receivedDoc ->
+                                if (receivedDoc.exists() && receivedDoc.getString("status") == "pending") {
+                                    trySend(Result.success("request_received"))
+                                } else {
+                                    trySend(Result.success("none"))
+                                }
+                            }
+                            .addOnFailureListener {
+                                // If both checks fail, default to none
+                                trySend(Result.success("none"))
+                            }
+                    }
+            }
+
+        awaitClose { friendListener.remove() }
+    }
+
+    /**
+     * Get list of friends for current user
+     */
+    fun getFriendsList(): Flow<Result<List<String>>> = callbackFlow {
+        val userId = currentUserId
+        if (userId == null) {
+            trySend(Result.failure(Exception("No user signed in")))
+            close()
+            return@callbackFlow
+        }
+
+        val listener = firestore.collection(FirestoreCollections.USERS)
+            .document(userId)
+            .collection("friends")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(Result.failure(error))
+                    return@addSnapshotListener
+                }
+
+                val friendIds = snapshot?.documents?.mapNotNull { it.id } ?: emptyList()
+                trySend(Result.success(friendIds))
+            }
+
+        awaitClose { listener.remove() }
     }
 
     /**
@@ -609,16 +763,71 @@ class UserRepository @Inject constructor(
                 .delete()
                 .await()
 
-            // Decrement connections count for both users
-            firestore.collection(FirestoreCollections.USERS)
-                .document(userId)
-                .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(-1))
-                .await()
+            // Clean up any old friend request documents
+            val requestId1 = "${userId}_${friendId}"
+            val requestId2 = "${friendId}_${userId}"
 
-            firestore.collection(FirestoreCollections.USERS)
-                .document(friendId)
-                .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(-1))
+            // Try to delete both possible request combinations (ignore errors if they don't exist)
+            try {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .collection("friendRequests")
+                    .document(requestId2)
+                    .delete()
+                    .await()
+            } catch (e: Exception) { /* Ignore */ }
+
+            try {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .collection("sentRequests")
+                    .document(requestId1)
+                    .delete()
+                    .await()
+            } catch (e: Exception) { /* Ignore */ }
+
+            try {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(friendId)
+                    .collection("friendRequests")
+                    .document(requestId1)
+                    .delete()
+                    .await()
+            } catch (e: Exception) { /* Ignore */ }
+
+            try {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(friendId)
+                    .collection("sentRequests")
+                    .document(requestId2)
+                    .delete()
+                    .await()
+            } catch (e: Exception) { /* Ignore */ }
+
+            // Decrement connections count for both users (ensure it doesn't go below 0)
+            val currentUserDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .get()
                 .await()
+            val currentConnections = currentUserDoc.getLong(FirestoreCollections.Fields.CONNECTIONS) ?: 0L
+            if (currentConnections > 0) {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(userId)
+                    .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(-1))
+                    .await()
+            }
+
+            val friendDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(friendId)
+                .get()
+                .await()
+            val friendConnections = friendDoc.getLong(FirestoreCollections.Fields.CONNECTIONS) ?: 0L
+            if (friendConnections > 0) {
+                firestore.collection(FirestoreCollections.USERS)
+                    .document(friendId)
+                    .update(FirestoreCollections.Fields.CONNECTIONS, FieldValue.increment(-1))
+                    .await()
+            }
 
             Result.success(Unit)
         } catch (e: Exception) {
