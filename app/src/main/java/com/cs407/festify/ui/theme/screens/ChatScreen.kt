@@ -1,68 +1,70 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package com.cs407.festify.ui.theme.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import com.cs407.festify.ui.theme.screens.ChatMessage
-import com.google.firebase.Timestamp
+import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import kotlinx.coroutines.launch
+import com.google.firebase.Timestamp
+import kotlinx.coroutines.tasks.await
 
+data class ChatMessage(
+    val senderId: String = "",
+    val senderName: String = "",
+    val text: String = "",
+    val timestamp: Timestamp? = null
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(eventName: String) {
+fun ChatScreen(
+    eventId: String,
+    eventName: String,
+    navController: NavController
+) {
     val db = FirebaseFirestore.getInstance()
-    val auth = FirebaseAuth.getInstance()
-    val user = auth.currentUser
-    val messages = remember { mutableStateListOf<ChatMessage>() }
-    var newMessage by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
+    val user = FirebaseAuth.getInstance().currentUser
 
-    LaunchedEffect(eventName) {
-        user?.uid?.let { uid ->
-            val chatRef = db.collection("chats").document(eventName)
-            chatRef.get().addOnSuccessListener { doc ->
-                if (doc.exists()) {
-                    chatRef.update(
-                        mapOf(
-                            "participantIds" to FieldValue.arrayUnion(uid),
-                            "participantCount" to FieldValue.increment(1)
-                        )
-                    )
-                } else {
-                    // Create chat if not exists
-                    chatRef.set(
-                        mapOf(
-                            "eventId" to eventName,
-                            "eventName" to eventName.replace("_", " ").replaceFirstChar { it.uppercase() },
-                            "participantIds" to listOf(uid),
-                            "participantCount" to 1,
-                            "lastMessage" to "Welcome to $eventName!",
-                            "lastMessageSender" to "System",
-                            "lastMessageTime" to Timestamp.now()
-                        )
-                    )
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var newMessage by remember { mutableStateOf(TextFieldValue("")) }
+
+    // --- Listen for messages ---
+    LaunchedEffect(eventId) {
+        db.collection("chats")
+            .document(eventId)
+            .collection("messages")
+            .orderBy("timestamp")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    println("Error fetching messages: ${e.message}")
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    messages.clear()
+                    messages.addAll(snapshot.toObjects(ChatMessage::class.java))
                 }
             }
-        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chat — $eventName") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                title = { Text(eventName) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
             )
         },
         bottomBar = {
@@ -72,38 +74,35 @@ fun ChatScreen(eventName: String) {
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextField(
+                OutlinedTextField(
                     value = newMessage,
                     onValueChange = { newMessage = it },
                     placeholder = { Text("Type a message...") },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    singleLine = true
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
+                IconButton(
                     onClick = {
-                        if (newMessage.isNotBlank()) {
-                            coroutineScope.launch {
-                                sendMessage(
-                                    db = db,
-                                    chatId = eventName,
-                                    senderId = user?.uid ?: "anonymous",
-                                    senderName = user?.email ?: "Unknown",
-                                    text = newMessage.trim()
-                                )
-                                newMessage = ""
-                            }
+                        val text = newMessage.text.trim()
+                        if (text.isNotEmpty() && user != null) {
+                            sendMessage(db, eventId, user.uid, user.email ?: "Unknown", text)
+                            newMessage = TextFieldValue("")
                         }
                     }
                 ) {
-                    Text("Send")
+                    Icon(Icons.Default.Send, contentDescription = "Send")
                 }
             }
         }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
-                .padding(innerPadding)
                 .fillMaxSize()
+                .padding(innerPadding)
+                .padding(8.dp),
+            reverseLayout = false
         ) {
             items(messages) { msg ->
                 MessageBubble(
@@ -115,8 +114,8 @@ fun ChatScreen(eventName: String) {
     }
 }
 
-/** Adds new message + updates chat metadata + participant list */
-suspend fun sendMessage(
+// --- Helper to send message ---
+fun sendMessage(
     db: FirebaseFirestore,
     chatId: String,
     senderId: String,
@@ -131,56 +130,55 @@ suspend fun sendMessage(
     )
 
     val chatRef = db.collection("chats").document(chatId)
+    val messagesRef = chatRef.collection("messages")
 
-    chatRef.collection("messages").add(message)
-        .addOnSuccessListener {
-            chatRef.update(
-                mapOf(
-                    "lastMessage" to text,
-                    "lastMessageSender" to senderName,
-                    "lastMessageTime" to Timestamp.now(),
-                    "participantIds" to FieldValue.arrayUnion(senderId)
-                )
-            )
-        }
-        .addOnFailureListener { e -> e.printStackTrace() }
+    db.runBatch { batch ->
+        val newMsgRef = messagesRef.document()
+        batch.set(newMsgRef, message)
+        batch.update(chatRef, mapOf(
+            "lastMessage" to text,
+            "lastMessageSender" to senderName,
+            "lastMessageTime" to Timestamp.now()
+        ))
+    }.addOnSuccessListener {
+        println("Message sent to chat $chatId")
+    }.addOnFailureListener {
+        println("Failed to send message: ${it.message}")
+    }
 }
 
-/** Message bubble UI */
 @Composable
 fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
-    val bgColor = if (isCurrentUser)
+    val bubbleColor = if (isCurrentUser) {
         MaterialTheme.colorScheme.primaryContainer
-    else
-        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
 
-    val textColor = if (isCurrentUser)
-        MaterialTheme.colorScheme.onPrimaryContainer
-    else
-        MaterialTheme.colorScheme.onSecondaryContainer
+    val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 8.dp),
-        contentAlignment = if (isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
+            .padding(vertical = 4.dp),
+        horizontalAlignment = alignment
     ) {
         Surface(
-            color = bgColor,
-            shape = MaterialTheme.shapes.medium
+            color = bubbleColor,
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 2.dp
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
                 if (!isCurrentUser) {
                     Text(
                         text = message.senderName,
                         style = MaterialTheme.typography.labelSmall,
-                        color = textColor.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Text(
                     text = message.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = textColor
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }

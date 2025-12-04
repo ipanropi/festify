@@ -64,7 +64,7 @@ fun ChatListScreen(navController: NavController) {
         ) {
             items(chats) { chat ->
                 ChatListItem(chat) {
-                    navController.navigate("chat/${chat.eventId}")
+                    navController.navigate("chat/${chat.eventId}/${chat.eventName}")
                 }
                 Divider(color = MaterialTheme.colorScheme.outlineVariant)
             }
