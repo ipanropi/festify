@@ -145,6 +145,24 @@ class EventRepository @Inject constructor(
     }
 
     /**
+     * Observe a single event in real-time
+     */
+    fun observeEvent(eventId: String): Flow<Event?> = callbackFlow {
+        val listener = firestore.collection(FirestoreCollections.EVENTS)
+            .document(eventId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    trySend(null)
+                    return@addSnapshotListener
+                }
+                val event = snapshot?.toObject(Event::class.java)
+                trySend(event)
+            }
+
+        awaitClose { listener.remove() }
+    }
+
+    /**
      * Create a new event
      */
     suspend fun createEvent(event: Event): Result<String> {
@@ -291,14 +309,6 @@ class EventRepository @Inject constructor(
                 .set(attendeeData)
                 .await()
 
-            // Update attendee count if status is "attending"
-            if (status == FirestoreCollections.RsvpStatus.ATTENDING) {
-                firestore.collection(FirestoreCollections.EVENTS)
-                    .document(eventId)
-                    .update(FirestoreCollections.Fields.ATTENDEES, FieldValue.increment(1))
-                    .await()
-            }
-
             // Add RSVP to user's profile
             val rsvpData = hashMapOf(
                 // FirestoreCollections.Fields.EVENT_ID to eventId,
@@ -383,14 +393,6 @@ class EventRepository @Inject constructor(
                 .document(userId)
                 .delete()
                 .await()
-
-            // Decrement attendee count if was attending
-            if (currentStatus == FirestoreCollections.RsvpStatus.ATTENDING) {
-                firestore.collection(FirestoreCollections.EVENTS)
-                    .document(eventId)
-                    .update(FirestoreCollections.Fields.ATTENDEES, FieldValue.increment(-1))
-                    .await()
-            }
 
             // Remove RSVP from user's profile
             firestore.collection(FirestoreCollections.USERS)
