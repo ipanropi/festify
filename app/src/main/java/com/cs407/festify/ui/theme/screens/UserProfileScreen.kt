@@ -142,14 +142,30 @@ fun UserProfileScreen(
                         }
                     }
                     "request_sent" -> {
-                        OutlinedButton(
-                            onClick = { },
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = false
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.Check, "Request Sent")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Request Sent")
+                            OutlinedButton(
+                                onClick = { },
+                                modifier = Modifier.weight(1f),
+                                enabled = false
+                            ) {
+                                Icon(Icons.Default.Check, "Request Sent")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Request Sent")
+                            }
+                            OutlinedButton(
+                                onClick = { viewModel.cancelFriendRequest(userId) },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Icon(Icons.Default.Close, "Cancel")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Cancel")
+                            }
                         }
                     }
                     "request_received" -> {

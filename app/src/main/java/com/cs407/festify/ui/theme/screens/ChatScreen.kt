@@ -1,176 +1,186 @@
 package com.cs407.festify.ui.theme.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
-import com.cs407.festify.ui.theme.FestifyTheme
+import androidx.navigation.NavController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.Timestamp
+import kotlinx.coroutines.tasks.await
 
-data class Message(
-    val senderName: String,
-    val text: String,
-    val timestamp: String,
-    val isCurrentUser: Boolean
+data class ChatMessage(
+    val senderId: String = "",
+    val senderName: String = "",
+    val text: String = "",
+    val timestamp: Timestamp? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(eventName: String) {
-    var newMessage by remember { mutableStateOf("") }
-    val messages = remember { sampleMessagesForEvent(eventName) }
+fun ChatScreen(
+    eventId: String,
+    eventName: String,
+    navController: NavController
+) {
+    val db = FirebaseFirestore.getInstance()
+    val user = FirebaseAuth.getInstance().currentUser
+
+    val messages = remember { mutableStateListOf<ChatMessage>() }
+    var newMessage by remember { mutableStateOf(TextFieldValue("")) }
+
+    // --- Listen for messages ---
+    LaunchedEffect(eventId) {
+        db.collection("chats")
+            .document(eventId)
+            .collection("messages")
+            .orderBy("timestamp")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    println("Error fetching messages: ${e.message}")
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    messages.clear()
+                    messages.addAll(snapshot.toObjects(ChatMessage::class.java))
+                }
+            }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chat — $eventName") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                title = { Text(eventName) },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
             )
         },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-        ) {
-            // Messages list
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                reverseLayout = true
-            ) {
-                items(messages.reversed()) { message ->
-                    ChatBubble(message)
-                }
-            }
-
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            // Message input bar (UI only)
+        bottomBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextField(
+                OutlinedTextField(
                     value = newMessage,
                     onValueChange = { newMessage = it },
-                    placeholder = { Text("Message about $eventName...") },
+                    placeholder = { Text("Type a message...") },
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = 56.dp),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    )
+                        .padding(end = 8.dp),
+                    singleLine = true
                 )
-                IconButton(onClick = { /* Placeholder only */ }) {
-                    Icon(
-                        imageVector = Icons.Default.Send,
-                        contentDescription = "Send",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                IconButton(
+                    onClick = {
+                        val text = newMessage.text.trim()
+                        if (text.isNotEmpty() && user != null) {
+                            sendMessage(db, eventId, user.uid, user.email ?: "Unknown", text)
+                            newMessage = TextFieldValue("")
+                        }
+                    }
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = "Send")
                 }
             }
         }
-    }
-}
-
-@Composable
-fun ChatBubble(message: Message) {
-    val alignment = if (message.isCurrentUser) Alignment.CenterEnd else Alignment.CenterStart
-    val bubbleColor = if (message.isCurrentUser)
-        MaterialTheme.colorScheme.primaryContainer
-    else
-        MaterialTheme.colorScheme.surfaceVariant
-    val textColor = MaterialTheme.colorScheme.onSurface
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 6.dp),
-        contentAlignment = alignment
-    ) {
-        Column(
+    ) { innerPadding ->
+        LazyColumn(
             modifier = Modifier
-                .background(bubbleColor, shape = MaterialTheme.shapes.medium)
-                .padding(10.dp)
-                .widthIn(max = 280.dp)
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(8.dp),
+            reverseLayout = false
         ) {
-            if (!message.isCurrentUser) {
-                Text(
-                    text = message.senderName,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            items(messages) { msg ->
+                MessageBubble(
+                    message = msg,
+                    isCurrentUser = msg.senderId == user?.uid
                 )
             }
-            Text(
-                text = message.text,
-                color = textColor,
-                fontSize = 14.sp
-            )
-            Text(
-                text = message.timestamp,
-                color = MaterialTheme.colorScheme.outline,
-                fontSize = 10.sp,
-                modifier = Modifier.align(Alignment.End)
-            )
         }
     }
 }
 
-/* --- Temporary sample data per event (UI only) --- */
-fun sampleMessagesForEvent(eventName: String): List<Message> {
-    return when (eventName.lowercase()) {
-        "networking dinner" -> listOf(
-            Message("Afif", "Who’s printing the name tags?", "7:30 PM", false),
-            Message("Adi", "Already done this morning!", "7:31 PM", true),
-            Message("Irfan", "Let’s meet at 6:45 near the hall.", "7:32 PM", false)
-        )
-        "music fest" -> listOf(
-            Message("Ishak", "Stage setup looks amazing 🔥", "8:10 PM", false),
-            Message("Adi", "Yeah! Can’t wait for the first act.", "8:12 PM", true)
-        )
-        else -> listOf(
-            Message("Festify", "Welcome to your event chat!", "Now", false)
-        )
+// --- Helper to send message ---
+fun sendMessage(
+    db: FirebaseFirestore,
+    chatId: String,
+    senderId: String,
+    senderName: String,
+    text: String
+) {
+    val message = ChatMessage(
+        senderId = senderId,
+        senderName = senderName,
+        text = text,
+        timestamp = Timestamp.now()
+    )
+
+    val chatRef = db.collection("chats").document(chatId)
+    val messagesRef = chatRef.collection("messages")
+
+    db.runBatch { batch ->
+        val newMsgRef = messagesRef.document()
+        batch.set(newMsgRef, message)
+        batch.update(chatRef, mapOf(
+            "lastMessage" to text,
+            "lastMessageSender" to senderName,
+            "lastMessageTime" to Timestamp.now()
+        ))
+    }.addOnSuccessListener {
+        println("Message sent to chat $chatId")
+    }.addOnFailureListener {
+        println("Failed to send message: ${it.message}")
     }
 }
 
-/* --- UI previews --- */
-@Preview(showBackground = true)
 @Composable
-fun ChatScreenLightPreview() {
-    FestifyTheme {
-        ChatScreen("Networking Dinner")
+fun MessageBubble(message: ChatMessage, isCurrentUser: Boolean) {
+    val bubbleColor = if (isCurrentUser) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+
+    val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalAlignment = alignment
+    ) {
+        Surface(
+            color = bubbleColor,
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 2.dp
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                if (!isCurrentUser) {
+                    Text(
+                        text = message.senderName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = message.text,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
     }
 }
-
-@Preview(showBackground = true)
-@Composable
-fun ChatScreenDarkPreview() {
-    FestifyTheme {
-        ChatScreen("Music Fest")
-    }
-}
-
