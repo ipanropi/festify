@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,6 +8,16 @@ plugins {
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.kapt)
 }
+
+val secretsPropertiesFile = rootProject.file("secrets.properties")
+val secretsProperties = Properties().apply {
+    if (secretsPropertiesFile.exists()) {
+        load(secretsPropertiesFile.inputStream())
+    }
+}
+val mapsApiKey: String = secretsProperties.getProperty("MAPS_API_KEY")
+    ?: System.getenv("MAPS_API_KEY")
+    ?: ""
 
 android {
     namespace = "com.cs407.festify"
@@ -19,6 +31,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -83,6 +96,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("com.google.accompanist:accompanist-pager-indicators:0.32.0")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.maps.android:maps-compose:4.4.2")
 
     // QR Code Generation
     implementation("com.google.zxing:core:3.5.3")

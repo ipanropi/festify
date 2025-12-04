@@ -18,6 +18,8 @@ data class Event(
     val date: String = "",
     val time: String = "",
     val location: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val attendees: Int = 0,
     val maxAttendees: Int = 0,
     val status: String = "upcoming", // "upcoming", "past", "cancelled"
