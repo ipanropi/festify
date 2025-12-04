@@ -2,6 +2,7 @@ package com.cs407.festify.ui.theme.screens
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -32,7 +33,13 @@ import com.cs407.festify.data.repository.CheckInStatus
 import com.cs407.festify.ui.theme.screens.components.ReportDialog
 import com.cs407.festify.ui.theme.screens.components.StatusTag
 import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
 fun EventDetailsScreen(
@@ -339,7 +346,7 @@ fun EventDetailsContent(
             Spacer(Modifier.height(16.dp))
             when (selectedTab) {
                 0 -> PlaceholderTab("Chat Coming Soon")
-                1 -> PlaceholderTab("Map Coming Soon")
+                1 -> EventMapTab(event)
                 2 -> PlaceholderTab("Photos Coming Soon")
             }
         }
@@ -364,6 +371,61 @@ fun PlaceholderTab(text: String) {
 }
 
 @Composable
+fun EventMapTab(event: Event) {
+    val context = LocalContext.current
+    val eventLatLng = remember(event.latitude, event.longitude) {
+        if (event.latitude != null && event.longitude != null) {
+            LatLng(event.latitude, event.longitude)
+        } else {
+            null
+        }
+    }
+
+    if (eventLatLng == null) {
+        PlaceholderTab("Host has not dropped a map pin yet.")
+        return
+    }
+
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(eventLatLng, 15f)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .clip(RoundedCornerShape(20.dp))
+        ) {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState
+            ) {
+                Marker(
+                    state = MarkerState(position = eventLatLng),
+                    title = event.title,
+                    snippet = event.location
+                )
+            }
+        }
+        Text(
+            text = event.location,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium
+        )
+        Button(
+            onClick = { openLocationInMaps(context, eventLatLng, event.title) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Directions, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Navigate with Google Maps")
+        }
+    }
+}
+
+@Composable
 fun InfoRow(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
         Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
@@ -379,4 +441,17 @@ fun shareEvent(context: Context, event: Event) {
         type = "text/plain"
     }
     context.startActivity(Intent.createChooser(sendIntent, null))
+}
+
+fun openLocationInMaps(context: Context, latLng: LatLng, label: String) {
+    val encodedLabel = Uri.encode(label.ifBlank { "Event Location" })
+    val geoUri = Uri.parse("geo:${latLng.latitude},${latLng.longitude}?q=${latLng.latitude},${latLng.longitude}($encodedLabel)")
+    val mapIntent = Intent(Intent.ACTION_VIEW, geoUri).apply {
+        setPackage("com.google.android.apps.maps")
+    }
+    if (mapIntent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(mapIntent)
+    } else {
+        context.startActivity(Intent(Intent.ACTION_VIEW, geoUri))
+    }
 }

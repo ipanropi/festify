@@ -160,6 +160,8 @@ class EventRepository @Inject constructor(
                 FirestoreCollections.Fields.DATE to event.date,
                 FirestoreCollections.Fields.TIME to event.time,
                 FirestoreCollections.Fields.LOCATION to event.location,
+                FirestoreCollections.Fields.LATITUDE to event.latitude,
+                FirestoreCollections.Fields.LONGITUDE to event.longitude,
                 FirestoreCollections.Fields.ATTENDEES to 0,
                 FirestoreCollections.Fields.MAX_ATTENDEES to event.maxAttendees,
                 FirestoreCollections.Fields.STATUS to FirestoreCollections.Status.UPCOMING,

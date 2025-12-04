@@ -124,6 +124,8 @@ class FunctionsRepository @Inject constructor(
             date = map["date"] as? String ?: "",
             time = map["time"] as? String ?: "",
             location = map["location"] as? String ?: "",
+            latitude = (map["latitude"] as? Number)?.toDouble(),
+            longitude = (map["longitude"] as? Number)?.toDouble(),
             attendees = (map["attendees"] as? Number)?.toInt() ?: 0,
             maxAttendees = (map["maxAttendees"] as? Number)?.toInt() ?: 0,
             status = map["status"] as? String ?: "upcoming",

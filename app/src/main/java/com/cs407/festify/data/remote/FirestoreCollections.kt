@@ -51,6 +51,8 @@ object FirestoreCollections {
         const val DATE = "date"
         const val TIME = "time"
         const val LOCATION = "location"
+        const val LATITUDE = "latitude"
+        const val LONGITUDE = "longitude"
         const val ATTENDEES = "attendees"
         const val MAX_ATTENDEES = "maxAttendees"
         const val STATUS = "status"

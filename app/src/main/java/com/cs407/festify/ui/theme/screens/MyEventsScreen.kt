@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -20,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,12 +34,18 @@ import com.cs407.festify.data.model.Event
 import com.cs407.festify.ui.theme.screens.components.SmartEventList
 import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
 import com.cs407.festify.ui.viewmodels.MyEventsViewModel
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import com.cs407.festify.ui.theme.viewmodels.JoinedEventsViewModel
 import java.util.*
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 
 // ==========================================
 // 1. HOSTED EVENTS SCREEN (Logic + Buttons)
@@ -191,13 +199,24 @@ fun MyEventsScreen(
                     eventToEdit = null // Reset so next time it opens empty
                 },
                 eventToEdit = eventToEdit, // Pass the event to pre-fill the form!
-                onCreateEvent = { title, desc, loc, time, max, tags, uri ->
+                onCreateEvent = { title, desc, loc, lat, lng, time, max, tags, uri ->
                     if (eventToEdit == null) {
                         // CREATE MODE
-                        viewModel.createEvent(title, desc, loc, time, max, tags, uri)
+                        viewModel.createEvent(title, desc, loc, lat, lng, time, max, tags, uri)
                     } else {
                         // EDIT MODE
-                        viewModel.updateEvent(eventToEdit!!.id, title, desc, loc, time, max, tags, uri)
+                        viewModel.updateEvent(
+                            eventToEdit!!.id,
+                            title,
+                            desc,
+                            loc,
+                            lat,
+                            lng,
+                            time,
+                            max,
+                            tags,
+                            uri
+                        )
                     }
                     showCreateEventDialog = false
                     eventToEdit = null
@@ -246,6 +265,8 @@ fun CreateEventDialog(
         title: String,
         description: String,
         location: String,
+        latitude: Double?,
+        longitude: Double?,
         startDateTime: Timestamp,
         maxAttendees: Int,
         tags: List<String>,
@@ -258,9 +279,12 @@ fun CreateEventDialog(
     var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
     var description by remember { mutableStateOf(eventToEdit?.description ?: "") }
     var location by remember { mutableStateOf(eventToEdit?.location ?: "") }
+    var latitude by remember { mutableStateOf(eventToEdit?.latitude) }
+    var longitude by remember { mutableStateOf(eventToEdit?.longitude) }
     var maxAttendees by remember { mutableStateOf(eventToEdit?.maxAttendees?.toString() ?: "") }
     var tags by remember { mutableStateOf(eventToEdit?.tags?.joinToString(", ") ?: "") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
+    var showLocationPicker by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = PickVisualMedia(),
@@ -301,6 +325,12 @@ fun CreateEventDialog(
 
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
     val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.US) }
+    val selectedLatLng = latitude?.let { lat ->
+        longitude?.let { lng -> LatLng(lat, lng) }
+    }
+    val locationSummary = selectedLatLng?.let {
+        "Lat: ${"%.4f".format(it.latitude)}, Lng: ${"%.4f".format(it.longitude)}"
+    } ?: "Tap \"Pick on Map\" to drop a pin"
 
 
     if (showDatePicker) {
@@ -337,6 +367,18 @@ fun CreateEventDialog(
         ) {
             TimePicker(state = timePickerState)
         }
+    }
+
+    if (showLocationPicker) {
+        LocationPickerDialog(
+            initialLocation = selectedLatLng,
+            onDismissRequest = { showLocationPicker = false },
+            onLocationSelected = { latLng ->
+                latitude = latLng.latitude
+                longitude = latLng.longitude
+                showLocationPicker = false
+            }
+        )
     }
 
     AlertDialog(
@@ -389,13 +431,28 @@ fun CreateEventDialog(
                     }
                 }
                 item {
-                    OutlinedTextField(
-                        value = location,
-                        onValueChange = { location = it },
-                        label = { Text("Location") },
-                        leadingIcon = { Icon(Icons.Outlined.LocationOn, "Location") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = location,
+                            onValueChange = { location = it },
+                            label = { Text("Location Description") },
+                            leadingIcon = { Icon(Icons.Outlined.LocationOn, "Location") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedButton(
+                            onClick = { showLocationPicker = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Outlined.Place, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (selectedLatLng == null) "Pick on Map" else "Update Map Pin")
+                        }
+                        Text(
+                            text = locationSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 item {
                     OutlinedTextField(
@@ -449,7 +506,17 @@ fun CreateEventDialog(
                     val tagsList = tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
                     if (finalTimestamp != null) {
-                        onCreateEvent(title, description, location, finalTimestamp, maxAttendeesInt, tagsList, imageUri)
+                        onCreateEvent(
+                            title,
+                            description,
+                            location,
+                            latitude,
+                            longitude,
+                            finalTimestamp,
+                            maxAttendeesInt,
+                            tagsList,
+                            imageUri
+                        )
                     }
                     onDismiss()
                 },
@@ -502,6 +569,100 @@ fun TimePickerDialog(
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.End) {
                     dismissButton?.invoke()
                     confirmButton()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LocationPickerDialog(
+    initialLocation: LatLng?,
+    onDismissRequest: () -> Unit,
+    onLocationSelected: (LatLng) -> Unit,
+) {
+    val defaultLocation = LatLng(43.0731, -89.4012)
+    var pendingLocation by remember(initialLocation) { mutableStateOf(initialLocation) }
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(initialLocation ?: defaultLocation, 11f)
+    }
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Drop a Pin",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Tap anywhere on the map to select the event location.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    GoogleMap(
+                        modifier = Modifier.fillMaxSize(),
+                        cameraPositionState = cameraPositionState,
+                        onMapClick = { latLng ->
+                            pendingLocation = latLng
+                        }
+                    ) {
+                        pendingLocation?.let {
+                            Marker(
+                                state = MarkerState(position = it),
+                                title = "Selected Location"
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                pendingLocation?.let {
+                    Text(
+                        text = "Selected: ${"%.4f".format(it.latitude)}, ${"%.4f".format(it.longitude)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                } ?: Text(
+                    text = "No pin selected",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismissRequest,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            pendingLocation?.let(onLocationSelected)
+                        },
+                        enabled = pendingLocation != null,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Use Pin")
+                    }
                 }
             }
         }

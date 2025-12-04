@@ -71,6 +71,8 @@ class MyEventsViewModel @Inject constructor(
             title: String,
             description: String,
             location: String,
+            latitude: Double?,
+            longitude: Double?,
             startDateTime: Timestamp,
             maxAttendees: Int,
             tags: List<String>,
@@ -103,6 +105,8 @@ class MyEventsViewModel @Inject constructor(
                         title = title,
                         description = description,
                         location = location,
+                        latitude = latitude,
+                        longitude = longitude,
                         date = date,
                         time = time,
                         startDateTime = startDateTime,
@@ -123,8 +127,9 @@ class MyEventsViewModel @Inject constructor(
                         val newEventId = result.getOrNull()
                         if (newEventId != null) {
                             val confirmedEvent = newEvent.copy(id = newEventId)
-                            _myEvents.value = listOf(confirmedEvent) + _myEvents.value
-                    }
+                            _myEvents.value = listOf(confirmedEvent) +
+                                _myEvents.value.filterNot { it.id == newEventId }
+                        }
                     }
                     else {
                         println("Error creating event: ${result.exceptionOrNull()?.message}")
@@ -141,6 +146,8 @@ class MyEventsViewModel @Inject constructor(
         title: String,
         description: String,
         location: String,
+        latitude: Double?,
+        longitude: Double?,
         startDateTime: Timestamp,
         maxAttendees: Int,
         tags: List<String>,
@@ -177,6 +184,9 @@ class MyEventsViewModel @Inject constructor(
 
                     }
                 }
+
+                latitude?.let { updates["latitude"] = it }
+                longitude?.let { updates["longitude"] = it }
 
                 println("--- UPDATING FIRESTORE DATABASE... ---")
 
