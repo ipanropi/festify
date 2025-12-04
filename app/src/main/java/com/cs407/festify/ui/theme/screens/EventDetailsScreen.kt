@@ -2,6 +2,7 @@ package com.cs407.festify.ui.theme.screens
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -32,9 +33,16 @@ import com.cs407.festify.data.repository.CheckInStatus
 import com.cs407.festify.ui.theme.screens.components.ReportDialog
 import com.cs407.festify.ui.theme.screens.components.StatusTag
 import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 
@@ -79,8 +87,6 @@ fun EventDetailsContent(
     rsvpStatus: String,
     isVouched: Boolean?
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Chat", "Map", "Photos")
     val context = LocalContext.current
     val checkInStatus by viewModel.checkInStatus.collectAsState()
 
@@ -209,7 +215,7 @@ fun EventDetailsContent(
                         viewModel.toggleRsvp(event.id)
 
                         // Wait briefly to allow state to update (optional delay if Flow is async)
-                        kotlinx.coroutines.delay(400)
+                        delay(400)
 
                         if (!wasAttending && user != null) {
                             // User just joined the event → add them to chat
@@ -369,32 +375,7 @@ fun EventDetailsContent(
             }
 
             Spacer(Modifier.height(16.dp))
-
-            // Tabs
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                tabs.forEachIndexed { index, title ->
-                    val isSelected = index == selectedTab
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(4.dp)
-                            .height(36.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(if (isSelected) MaterialTheme.colorScheme.surfaceVariant else Color.LightGray.copy(alpha = 0.3f))
-                            .clickable { selectedTab = index },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(title, color = if (isSelected) Color.Black else Color.Gray)
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-            when (selectedTab) {
-                0 -> PlaceholderTab("Chat Coming Soon")
-                1 -> PlaceholderTab("Map Coming Soon")
-                2 -> PlaceholderTab("Photos Coming Soon")
-            }
+            EventMapTab(event)
         }
     }
 
@@ -417,6 +398,59 @@ fun PlaceholderTab(text: String) {
 }
 
 @Composable
+fun EventMapTab(event: Event) {
+    val context = LocalContext.current
+    val eventLatLng = remember(event.latitude, event.longitude) {
+        if (event.latitude != null && event.longitude != null) {
+            LatLng(event.latitude, event.longitude)
+        } else null
+    }
+
+    if (eventLatLng == null) {
+        PlaceholderTab("Host has not dropped a map pin yet.")
+        return
+    }
+
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(eventLatLng, 15f)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .clip(RoundedCornerShape(20.dp))
+        ) {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState
+            ) {
+                Marker(
+                    state = MarkerState(position = eventLatLng),
+                    title = event.title,
+                    snippet = event.location
+                )
+            }
+        }
+        Text(
+            text = event.location,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium
+        )
+        Button(
+            onClick = { openLocationInMaps(context, eventLatLng, event.title) },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(Icons.Default.Directions, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Navigate with Google Maps")
+        }
+    }
+}
+
+@Composable
 fun InfoRow(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
         Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
@@ -432,4 +466,17 @@ fun shareEvent(context: Context, event: Event) {
         type = "text/plain"
     }
     context.startActivity(Intent.createChooser(sendIntent, null))
+}
+
+fun openLocationInMaps(context: Context, latLng: LatLng, label: String) {
+    val encodedLabel = Uri.encode(label.ifBlank { "Event Location" })
+    val geoUri = Uri.parse("geo:${latLng.latitude},${latLng.longitude}?q=${latLng.latitude},${latLng.longitude}($encodedLabel)")
+    val mapIntent = Intent(Intent.ACTION_VIEW, geoUri).apply {
+        setPackage("com.google.android.apps.maps")
+    }
+    if (mapIntent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(mapIntent)
+    } else {
+        context.startActivity(Intent(Intent.ACTION_VIEW, geoUri))
+    }
 }
