@@ -38,9 +38,8 @@ class EventDetailsViewModel @Inject constructor(
      */
     fun loadEvent(eventId: String) {
         viewModelScope.launch {
-            val result = repository.getEvent(eventId)
-            if (result.isSuccess) {
-                _event.value = result.getOrNull()
+            repository.observeEvent(eventId).collect { updatedEvent ->
+                _event.value = updatedEvent
             }
         }
 
