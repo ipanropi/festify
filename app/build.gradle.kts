@@ -75,6 +75,9 @@ dependencies {
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.firebase.functions.ktx)
 
+    // Google Sign-In
+    implementation("com.google.android.gms:play-services-auth:21.0.0")
+
     // Hilt
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)

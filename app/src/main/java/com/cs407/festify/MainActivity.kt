@@ -21,6 +21,8 @@ import androidx.navigation.compose.*
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.size
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 
@@ -37,6 +39,7 @@ import com.cs407.festify.ui.theme.screens.EventDetailsScreen
 import com.cs407.festify.ui.theme.screens.QRCodeDisplayScreen
 import com.cs407.festify.ui.theme.screens.QRScannerScreen
 import com.cs407.festify.ui.theme.screens.UserProfileScreen
+import com.cs407.festify.ui.theme.screens.FriendsListScreen
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -103,7 +106,10 @@ fun FestifyApp() {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                modifier = Modifier.padding(vertical = 0.dp),
+                tonalElevation = 0.dp
+            ) {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentDestination = navBackStackEntry?.destination
 
@@ -116,8 +122,19 @@ fun FestifyApp() {
                     }
 
                     NavigationBarItem(
-                        icon = { Icon(icon, contentDescription = screen.title) },
-                        label = { Text(screen.title) },
+                        icon = {
+                            Icon(
+                                icon,
+                                contentDescription = screen.title,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                screen.title,
+                                fontSize = 11.sp
+                            )
+                        },
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
                             navController.navigate(screen.route) {
@@ -152,7 +169,7 @@ fun FestifyApp() {
                 ChatScreen(eventId = eventId, eventName = eventName, navController = navController)
             }
             composable(Screen.MyEvents.route) { MyEventsTabScreen(navController = navController) }
-            composable(Screen.Profile.route) { ProfileScreen() }
+            composable(Screen.Profile.route) { ProfileScreen(navController) }
             composable(
                 route = "event/{eventId}",
                 arguments = listOf(navArgument("eventId") { type = NavType.StringType })
@@ -189,6 +206,18 @@ fun FestifyApp() {
             ) { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId") ?: ""
                 UserProfileScreen(
+                    userId = userId,
+                    navController = navController
+                )
+            }
+
+            // Friends List
+            composable(
+                route = "friends/{userId}",
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val userId = backStackEntry.arguments?.getString("userId") ?: ""
+                FriendsListScreen(
                     userId = userId,
                     navController = navController
                 )

@@ -42,6 +42,19 @@ class ProfileViewModel @Inject constructor(
         loadUserProfile()
         loadAchievements()
         loadFriendRequests()
+        syncConnectionsCount()
+    }
+
+    private fun syncConnectionsCount() {
+        viewModelScope.launch {
+            // Get current user ID from the profile
+            userRepository.getCurrentUserProfile().collect { result ->
+                result.onSuccess { user ->
+                    userRepository.syncConnectionsCount(user.id)
+                    return@collect
+                }
+            }
+        }
     }
 
     private fun loadUserProfile() {

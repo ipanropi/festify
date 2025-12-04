@@ -762,18 +762,19 @@ class EventRepository @Inject constructor(
     fun getEventsByHostId(hostId: String): Flow<Result<List<Event>>> = callbackFlow {
         val listener = firestore.collection(FirestoreCollections.EVENTS)
             .whereEqualTo(FirestoreCollections.Fields.HOST_ID, hostId)
-            .whereEqualTo(FirestoreCollections.Fields.STATUS, FirestoreCollections.Status.UPCOMING)
             .orderBy(FirestoreCollections.Fields.START_DATE_TIME, Query.Direction.DESCENDING)
-            .limit(5) // Show only 5 most recent events
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     trySend(Result.failure(error))
                     return@addSnapshotListener
                 }
 
+                // Filter for upcoming events and limit to 5 most recent
                 val events = snapshot?.documents?.mapNotNull { doc ->
                     doc.toObject(Event::class.java)?.copy(id = doc.id)
-                } ?: emptyList()
+                }?.filter { event ->
+                    event.status == FirestoreCollections.Status.UPCOMING
+                }?.take(5) ?: emptyList()
 
                 trySend(Result.success(events))
             }
