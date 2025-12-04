@@ -200,8 +200,10 @@ fun EventDetailsContent(
             Text(event.description)
             Spacer(Modifier.height(16.dp))
 
-            // RSVP Button
             val isAttending = rsvpStatus == "attending"
+            // Check if the event is cancelled
+            val isCancelled = event.status == "cancelled"
+
             val db = FirebaseFirestore.getInstance()
             val user = FirebaseAuth.getInstance().currentUser
             val coroutineScope = rememberCoroutineScope()
@@ -211,14 +213,13 @@ fun EventDetailsContent(
                     coroutineScope.launch {
                         val wasAttending = (rsvpStatus == "attending")
 
-                        // Toggle RSVP in the ViewModel
                         viewModel.toggleRsvp(event.id)
 
-                        // Wait briefly to allow state to update (optional delay if Flow is async)
+
                         delay(400)
 
                         if (!wasAttending && user != null) {
-                            // User just joined the event → add them to chat
+
                             val chatRef = db.collection("chats").document(event.id)
                             chatRef.get().addOnSuccessListener { doc ->
                                 if (doc.exists()) {
@@ -229,7 +230,6 @@ fun EventDetailsContent(
                                         )
                                     )
                                 } else {
-                                    // Create chat if missing
                                     chatRef.set(
                                         mapOf(
                                             "eventId" to event.id,
@@ -244,22 +244,32 @@ fun EventDetailsContent(
                                 }
                             }
                         } else if (wasAttending && user != null) {
-                            // User cancelled → remove from chat participants
+                            // User left -> Remove from chat
                             db.collection("chats").document(event.id)
                                 .update("participantIds", FieldValue.arrayRemove(user.uid))
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
+                // DISABLE THE BUTTON IF CANCELLED
+                enabled = !isCancelled,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (rsvpStatus == "attending")
-                        MaterialTheme.colorScheme.error
-                    else
-                        MaterialTheme.colorScheme.primary
+                    containerColor = when {
+                        isCancelled -> Color.Gray // Gray if cancelled
+                        isAttending -> MaterialTheme.colorScheme.error // Red if attending
+                        else -> MaterialTheme.colorScheme.primary // Blue if joining
+                    }
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(if (rsvpStatus == "attending") "Not Going (Cancel)" else "Going")
+
+                Text(
+                    text = when {
+                        isCancelled -> "Event Cancelled"
+                        isAttending -> "Not Going (Cancel)"
+                        else -> "Going"
+                    }
+                )
             }
 
             Spacer(Modifier.height(12.dp))

@@ -255,19 +255,44 @@ fun CreateEventDialog(
         maxAttendees: Int,
         tags: List<String>,
         imageUri: Uri?,
-
     ) -> Unit,
     eventToEdit: Event? = null,
 ) {
-    // --- Form States ---
-    var title by remember { mutableStateOf(eventToEdit?.title ?: "") }
-    var description by remember { mutableStateOf(eventToEdit?.description ?: "") }
-    var location by remember { mutableStateOf(eventToEdit?.location ?: "") }
-    var latitude by remember { mutableStateOf(eventToEdit?.latitude) }
-    var longitude by remember { mutableStateOf(eventToEdit?.longitude) }
-    var maxAttendees by remember { mutableStateOf(eventToEdit?.maxAttendees?.toString() ?: "") }
-    var tags by remember { mutableStateOf(eventToEdit?.tags?.joinToString(", ") ?: "") }
-    var imageUri by remember { mutableStateOf<Uri?>(null) }
+    // --- 1. SETUP FORMATTERS ---
+    // The DatePicker returns UTC. We must format it using UTC or it shifts by one day visually.
+    val dateFormatter = remember {
+        SimpleDateFormat("MMM dd, yyyy", Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+    }
+    // Time picker is always local
+    val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.US) }
+
+    // --- 2. CALCULATE INITIAL STATE FOR EDIT MODE ---
+    // We need to convert the saved Event Time (Local) back to a UTC Date for the picker initialization
+    val initialUtcMillis = remember(eventToEdit) {
+        eventToEdit?.startDateTime?.toDate()?.let { date ->
+            val localCal = Calendar.getInstance().apply { time = date }
+
+            // Create a UTC calendar with the same Year/Month/Day
+            val utcCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+            utcCal.clear()
+            utcCal.set(Calendar.YEAR, localCal.get(Calendar.YEAR))
+            utcCal.set(Calendar.MONTH, localCal.get(Calendar.MONTH))
+            utcCal.set(Calendar.DAY_OF_MONTH, localCal.get(Calendar.DAY_OF_MONTH))
+            utcCal.timeInMillis
+        }
+    }
+
+    // --- 3. FORM STATES (Reset when eventToEdit changes) ---
+    var title by remember(eventToEdit) { mutableStateOf(eventToEdit?.title ?: "") }
+    var description by remember(eventToEdit) { mutableStateOf(eventToEdit?.description ?: "") }
+    var location by remember(eventToEdit) { mutableStateOf(eventToEdit?.location ?: "") }
+    var latitude by remember(eventToEdit) { mutableStateOf(eventToEdit?.latitude) }
+    var longitude by remember(eventToEdit) { mutableStateOf(eventToEdit?.longitude) }
+    var maxAttendees by remember(eventToEdit) { mutableStateOf(eventToEdit?.maxAttendees?.toString() ?: "") }
+    var tags by remember(eventToEdit) { mutableStateOf(eventToEdit?.tags?.joinToString(", ") ?: "") }
+    var imageUri by remember(eventToEdit) { mutableStateOf<Uri?>(null) } // Reset image on edit open
     var showLocationPicker by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -275,40 +300,33 @@ fun CreateEventDialog(
         onResult = { uri -> imageUri = uri }
     )
 
-    // --- Date/Time Logic (Critical Fix) ---
-    // 1. Get initial timestamp from event, or null
-    val initialTimestamp = eventToEdit?.startDateTime?.toDate()
-
-    // 2. Initialize DatePicker state
+    // --- 4. PICKER STATES ---
     val datePickerState = rememberDatePickerState(
-        initialSelectedDateMillis = initialTimestamp?.time
+        initialSelectedDateMillis = initialUtcMillis
     )
-    var selectedDateMillis by remember { mutableStateOf(initialTimestamp?.time) }
+    // Track selected date manually to update UI instantly
+    var selectedDateMillis by remember(eventToEdit) { mutableStateOf(initialUtcMillis) }
 
-    // 3. Initialize Time state
-    // We need to extract hour/minute from the timestamp if it exists
-    val initialCalendar = remember(initialTimestamp) {
-        if (initialTimestamp != null) {
-            Calendar.getInstance().apply { time = initialTimestamp }
-        } else {
-            null
-        }
+    // Calculate Initial Time (Local)
+    val initialTimeCal = remember(eventToEdit) {
+        if (eventToEdit != null) {
+            Calendar.getInstance().apply { time = eventToEdit.startDateTime!!.toDate() }
+        } else null
     }
+    var selectedTimeHour by remember(eventToEdit) { mutableStateOf(initialTimeCal?.get(Calendar.HOUR_OF_DAY)) }
+    var selectedTimeMinute by remember(eventToEdit) { mutableStateOf(initialTimeCal?.get(Calendar.MINUTE)) }
 
-    var selectedTimeHour by remember { mutableStateOf(initialCalendar?.get(Calendar.HOUR_OF_DAY)) }
-    var selectedTimeMinute by remember { mutableStateOf(initialCalendar?.get(Calendar.MINUTE)) }
-
-    // Dialog States
+    // Dialog Visibility States
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+
     val timePickerState = rememberTimePickerState(
         initialHour = selectedTimeHour ?: 0,
         initialMinute = selectedTimeMinute ?: 0,
         is24Hour = false
     )
-    var showTimePicker by remember { mutableStateOf(false) }
 
-    val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.US) }
-    val timeFormatter = remember { SimpleDateFormat("h:mm a", Locale.US) }
+    // Location Summary String
     val selectedLatLng = latitude?.let { lat ->
         longitude?.let { lng -> LatLng(lat, lng) }
     }
@@ -317,6 +335,7 @@ fun CreateEventDialog(
     } ?: "Tap \"Pick on Map\" to drop a pin"
 
 
+    // --- DIALOG UI ---
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -326,17 +345,13 @@ fun CreateEventDialog(
                     showDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = datePickerState) }
     }
-
 
     if (showTimePicker) {
         TimePickerDialog(
+            title = "Select Time",
             onDismissRequest = { showTimePicker = false },
             confirmButton = {
                 TextButton(onClick = {
@@ -345,12 +360,8 @@ fun CreateEventDialog(
                     showTimePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
-            }
-        ) {
-            TimePicker(state = timePickerState)
-        }
+            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("Cancel") } }
+        ) { TimePicker(state = timePickerState) }
     }
 
     if (showLocationPicker) {
@@ -367,9 +378,10 @@ fun CreateEventDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create New Event") },
+        title = { Text(if (eventToEdit == null) "Create New Event" else "Edit Event") },
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Title
                 item {
                     OutlinedTextField(
                         value = title,
@@ -378,6 +390,7 @@ fun CreateEventDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                // Description
                 item {
                     OutlinedTextField(
                         value = description,
@@ -387,33 +400,37 @@ fun CreateEventDialog(
                     )
                 }
 
+                // Date & Time Buttons
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Date Button
                         Button(onClick = { showDatePicker = true }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Outlined.DateRange, "Date")
                             Spacer(Modifier.width(8.dp))
+                            // Use the UTC formatter so "Dec 19 UTC" displays as "Dec 19"
                             val buttonText = selectedDateMillis?.let { dateFormatter.format(Date(it)) } ?: "Select Date"
                             Text(buttonText)
                         }
                         Spacer(Modifier.width(16.dp))
+                        // Time Button
                         Button(onClick = { showTimePicker = true }, modifier = Modifier.weight(1f)) {
-                            val buttonText = if (selectedTimeHour != null && selectedTimeMinute != null) {
+                            val buttonText = if (selectedTimeHour != null) {
                                 val cal = Calendar.getInstance().apply {
                                     set(Calendar.HOUR_OF_DAY, selectedTimeHour!!)
                                     set(Calendar.MINUTE, selectedTimeMinute!!)
                                 }
                                 timeFormatter.format(cal.time)
-                            } else {
-                                "Select Time"
-                            }
+                            } else "Select Time"
                             Text(buttonText)
                         }
                     }
                 }
+
+                // Location & Map Picker
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
@@ -438,6 +455,8 @@ fun CreateEventDialog(
                         )
                     }
                 }
+
+                // Max Attendees
                 item {
                     OutlinedTextField(
                         value = maxAttendees,
@@ -449,6 +468,7 @@ fun CreateEventDialog(
                     )
                 }
 
+                // Image Upload
                 item {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -456,23 +476,30 @@ fun CreateEventDialog(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                     ) {
                         Icon(Icons.Outlined.Image, "Upload Image", modifier = Modifier.size(40.dp), tint = Color.Gray)
-                        Text("Upload event image or select from gallery", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (eventToEdit != null && imageUri == null) "Current image will be kept" else "Upload event image",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         OutlinedButton(onClick = { photoPickerLauncher.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly)) }) {
                             Text(if (imageUri == null) "Select Image" else "Change Image")
                         }
                         imageUri?.let { Text("Selected: ${it.path?.substringAfterLast('/')}", style = MaterialTheme.typography.bodySmall) }
                     }
                 }
+
+                // Tags
                 item {
                     OutlinedTextField(
                         value = tags,
                         onValueChange = { tags = it },
                         label = { Text("Add Tags") },
-                        placeholder = { Text("e.g., networking, party, studygroup") },
+                        placeholder = { Text("e.g., networking, party") },
                         leadingIcon = { Icon(Icons.Outlined.Style, "Tags") },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+
+                // Guidelines
                 item {
                     Text(
                         text = "By creating this event, you agree to our Community Guidelines",
@@ -505,24 +532,37 @@ fun CreateEventDialog(
                     onDismiss()
                 },
                 enabled = title.isNotBlank() && location.isNotBlank() && selectedDateMillis != null && selectedTimeHour != null
-            ) { Text("Create Event") }
+            ) { Text(if (eventToEdit == null) "Create Event" else "Save Changes") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
-private fun combineDateAndTime(dateMillis: Long?, hour: Int?, minute: Int?): Timestamp? {
-    if (dateMillis == null || hour == null || minute == null) return null
-    val calendar = Calendar.getInstance().apply {
-        timeInMillis = dateMillis
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-        add(Calendar.HOUR_OF_DAY, hour)
-        add(Calendar.MINUTE, minute)
+private fun combineDateAndTime(
+    dateMillis: Long?,
+    hour: Int?,
+    minute: Int?
+): Timestamp? {
+    if (dateMillis == null || hour == null || minute == null) {
+        return null
     }
-    return Timestamp(calendar.time)
+
+    val utcCalendar = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+    utcCalendar.timeInMillis = dateMillis
+
+    val localCalendar = Calendar.getInstance() // System default timezone (e.g., CST)
+    localCalendar.clear()
+
+    localCalendar.set(Calendar.YEAR, utcCalendar.get(Calendar.YEAR))
+    localCalendar.set(Calendar.MONTH, utcCalendar.get(Calendar.MONTH))
+    localCalendar.set(Calendar.DAY_OF_MONTH, utcCalendar.get(Calendar.DAY_OF_MONTH))
+
+    localCalendar.set(Calendar.HOUR_OF_DAY, hour)
+    localCalendar.set(Calendar.MINUTE, minute)
+    localCalendar.set(Calendar.SECOND, 0)
+    localCalendar.set(Calendar.MILLISECOND, 0)
+
+    return Timestamp(localCalendar.time)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
