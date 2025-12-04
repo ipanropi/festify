@@ -177,7 +177,10 @@ data class Attendee(
  * Friend request data model
  */
 data class FriendRequest(
+    @DocumentId
+    val firestoreDocumentId: String = "",
     val id: String = "",
+
     val senderId: String = "",
     val senderName: String = "",
     val senderAvatarUrl: String = "",

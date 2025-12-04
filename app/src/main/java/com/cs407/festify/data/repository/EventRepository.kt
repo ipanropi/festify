@@ -818,6 +818,27 @@ class EventRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    // In EventRepository.kt
+
+    /**
+     * Deletes the event and cleans up hosted events list.
+     * This bypasses the host check for admin use.
+     */
+    suspend fun adminDeleteEvent(eventId: String): Result<Unit> {
+        return try {
+            // 1. Delete event document
+            firestore.collection(FirestoreCollections.EVENTS)
+                .document(eventId)
+                .delete()
+                .await()
+
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
 }
 
 /**
