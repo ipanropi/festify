@@ -143,11 +143,13 @@ fun FestifyApp() {
                 ChatListScreen(navController)
             }
             composable(
-                route = "chat/{eventId}",
-                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+                route = "chat/{eventId}/{eventName}",
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType },
+                    navArgument("eventName") {type = NavType.StringType})
             ) { backStackEntry ->
                 val eventId = backStackEntry.arguments?.getString("eventId") ?: ""
-                ChatScreen(eventName = eventId.replace("_", " ").replaceFirstChar { it.uppercase() })
+                val eventName = backStackEntry.arguments?.getString("eventName") ?: ""
+                ChatScreen(eventId = eventId, eventName = eventName, navController = navController)
             }
             composable(Screen.MyEvents.route) { MyEventsTabScreen(navController = navController) }
             composable(Screen.Profile.route) { ProfileScreen() }
