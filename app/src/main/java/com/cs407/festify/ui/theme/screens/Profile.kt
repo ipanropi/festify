@@ -314,31 +314,6 @@ fun ProfileScreen(
                         icon = Icons.Outlined.DarkMode,
                         contentdesc = "Dark Mode"
                     )
-                    SettingSwitch(
-                        title = "Push Notifications",
-                        subtitle = "Get event updates",
-                        checked = uiState.pushNotifications,
-                        onCheckedChange = { viewModel.toggleNotifications() },
-                        icon = Icons.Outlined.Notifications,
-                        contentdesc = "Notifications"
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Outlined.Settings,
-                            contentDescription = "Settings",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "More Settings",
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
                 }
             }
         }

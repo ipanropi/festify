@@ -191,7 +191,7 @@ fun EventCard(
                         text = event.hostName.ifEmpty { "Unknown" },
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
-                        color = Color.Black
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
