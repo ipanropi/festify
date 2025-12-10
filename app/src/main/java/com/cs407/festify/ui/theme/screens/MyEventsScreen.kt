@@ -34,6 +34,7 @@ import com.cs407.festify.data.model.Event
 import com.cs407.festify.ui.theme.screens.components.SmartEventList
 import com.cs407.festify.ui.theme.viewmodels.EventDetailsViewModel
 import com.cs407.festify.ui.viewmodels.MyEventsViewModel
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.Timestamp
@@ -46,6 +47,7 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.launch
 
 // ==========================================
 // 1. HOSTED EVENTS SCREEN (Logic + Buttons)
@@ -608,7 +610,17 @@ fun LocationPickerDialog(
     val defaultLocation = LatLng(43.0731, -89.4012)
     var pendingLocation by remember(initialLocation) { mutableStateOf(initialLocation) }
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(initialLocation ?: defaultLocation, 11f)
+        position = CameraPosition.fromLatLngZoom(initialLocation ?: defaultLocation, 15f)
+    }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(initialLocation) {
+        val start = initialLocation ?: defaultLocation
+        cameraPositionState.move(CameraUpdateFactory.newLatLngZoom(start, 14.5f))
+        cameraPositionState.animate(
+            update = CameraUpdateFactory.newLatLngZoom(start, 16.5f),
+            durationMs = 800
+        )
     }
 
     Dialog(
@@ -645,6 +657,12 @@ fun LocationPickerDialog(
                         cameraPositionState = cameraPositionState,
                         onMapClick = { latLng ->
                             pendingLocation = latLng
+                            coroutineScope.launch {
+                                cameraPositionState.animate(
+                                    update = CameraUpdateFactory.newLatLngZoom(latLng, 17f),
+                                    durationMs = 600
+                                )
+                            }
                         }
                     ) {
                         pendingLocation?.let {
