@@ -262,6 +262,37 @@ class EventRepository @Inject constructor(
                 return Result.failure(Exception("Only the host can delete the event"))
             }
 
+            // Get all attendees who were "attending" to decrement their count
+            val attendeesSnapshot = firestore.collection(FirestoreCollections.EVENTS)
+                .document(eventId)
+                .collection(FirestoreCollections.Event.ATTENDEES)
+                .whereEqualTo(FirestoreCollections.Fields.RSVP_STATUS, FirestoreCollections.RsvpStatus.ATTENDING)
+                .get()
+                .await()
+
+            // Decrement upcomingEvents count for each attending user
+            for (attendeeDoc in attendeesSnapshot.documents) {
+                val userId = attendeeDoc.getString(FirestoreCollections.Fields.USER_ID)
+                if (userId != null) {
+                    try {
+                        firestore.collection(FirestoreCollections.USERS)
+                            .document(userId)
+                            .update(FirestoreCollections.Fields.UPCOMING_EVENTS, FieldValue.increment(-1))
+                            .await()
+
+                        // Also delete the RSVP from user's profile for cleanup
+                        firestore.collection(FirestoreCollections.USERS)
+                            .document(userId)
+                            .collection(FirestoreCollections.User.RSVPS)
+                            .document(eventId)
+                            .delete()
+                            .await()
+                    } catch (e: Exception) {
+                        println("Failed to update count for user $userId: ${e.message}")
+                    }
+                }
+            }
+
             // Delete event document
             firestore.collection(FirestoreCollections.EVENTS)
                 .document(eventId)
@@ -294,6 +325,16 @@ class EventRepository @Inject constructor(
 
             val userName = currentUserName ?: "Unknown"
 
+            // Get current RSVP status to properly update the count
+            val currentRsvpDoc = firestore.collection(FirestoreCollections.USERS)
+                .document(userId)
+                .collection(FirestoreCollections.User.RSVPS)
+                .document(eventId)
+                .get()
+                .await()
+
+            val oldStatus = currentRsvpDoc.getString(FirestoreCollections.Fields.RSVP_STATUS)
+
             // Add/update attendee in event
             val attendeeData = hashMapOf(
                 FirestoreCollections.Fields.USER_ID to userId,
@@ -323,12 +364,26 @@ class EventRepository @Inject constructor(
                 .set(rsvpData)
                 .await()
 
-            // Update user's upcomingEvents count if status is "attending"
-            if (status == FirestoreCollections.RsvpStatus.ATTENDING) {
-                firestore.collection(FirestoreCollections.USERS)
-                    .document(userId)
-                    .update(FirestoreCollections.Fields.UPCOMING_EVENTS, FieldValue.increment(1))
-                    .await()
+            // Update user's upcomingEvents count based on status change
+            val wasAttending = oldStatus == FirestoreCollections.RsvpStatus.ATTENDING
+            val isNowAttending = status == FirestoreCollections.RsvpStatus.ATTENDING
+
+            when {
+                // Changed from NOT attending to attending -> increment
+                !wasAttending && isNowAttending -> {
+                    firestore.collection(FirestoreCollections.USERS)
+                        .document(userId)
+                        .update(FirestoreCollections.Fields.UPCOMING_EVENTS, FieldValue.increment(1))
+                        .await()
+                }
+                // Changed from attending to NOT attending -> decrement
+                wasAttending && !isNowAttending -> {
+                    firestore.collection(FirestoreCollections.USERS)
+                        .document(userId)
+                        .update(FirestoreCollections.Fields.UPCOMING_EVENTS, FieldValue.increment(-1))
+                        .await()
+                }
+                // No change in attending status -> no count update needed
             }
 
             Result.success(Unit)
@@ -826,12 +881,42 @@ class EventRepository @Inject constructor(
      */
     suspend fun adminDeleteEvent(eventId: String): Result<Unit> {
         return try {
-            // 1. Delete event document
+            // Get all attendees who were "attending" to decrement their count
+            val attendeesSnapshot = firestore.collection(FirestoreCollections.EVENTS)
+                .document(eventId)
+                .collection(FirestoreCollections.Event.ATTENDEES)
+                .whereEqualTo(FirestoreCollections.Fields.RSVP_STATUS, FirestoreCollections.RsvpStatus.ATTENDING)
+                .get()
+                .await()
+
+            // Decrement upcomingEvents count for each attending user
+            for (attendeeDoc in attendeesSnapshot.documents) {
+                val userId = attendeeDoc.getString(FirestoreCollections.Fields.USER_ID)
+                if (userId != null) {
+                    try {
+                        firestore.collection(FirestoreCollections.USERS)
+                            .document(userId)
+                            .update(FirestoreCollections.Fields.UPCOMING_EVENTS, FieldValue.increment(-1))
+                            .await()
+
+                        // Also delete the RSVP from user's profile for cleanup
+                        firestore.collection(FirestoreCollections.USERS)
+                            .document(userId)
+                            .collection(FirestoreCollections.User.RSVPS)
+                            .document(eventId)
+                            .delete()
+                            .await()
+                    } catch (e: Exception) {
+                        println("Failed to update count for user $userId: ${e.message}")
+                    }
+                }
+            }
+
+            // Delete event document
             firestore.collection(FirestoreCollections.EVENTS)
                 .document(eventId)
                 .delete()
                 .await()
-
 
             Result.success(Unit)
         } catch (e: Exception) {

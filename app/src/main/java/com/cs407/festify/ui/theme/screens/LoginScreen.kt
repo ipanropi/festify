@@ -117,26 +117,45 @@ fun LoginScreen(
                 .fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Card(
-                modifier = Modifier
-                    .padding(24.dp)
-                    .fillMaxWidth(0.92f)
-                    .widthIn(max = 440.dp),
-                shape = MaterialTheme.shapes.large,
-                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                border = BorderStroke(1.dp, Color(0xFFDDDDDD))
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxSize()
             ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                Text(
+                    text = "festify",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+
+                Text(
+                    text = "simplify your events",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(bottom = 32.dp)
+                )
+
+                Card(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(0.92f)
+                        .widthIn(max = 440.dp),
+                    shape = MaterialTheme.shapes.large,
+                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFDDDDDD))
                 ) {
-                    Text(
-                        text = "SIGN IN / SIGN UP",
-                        style = MaterialTheme.typography.titleMedium,
-                        letterSpacing = 1.sp
-                    )
+                    Column(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "SIGN IN / SIGN UP",
+                            style = MaterialTheme.typography.titleMedium,
+                            letterSpacing = 1.sp
+                        )
 
                     ErrorText(
                         error = errorMessage,
@@ -290,6 +309,7 @@ fun LoginScreen(
                         )
                     }
                 }
+            }
             }
         }
     }

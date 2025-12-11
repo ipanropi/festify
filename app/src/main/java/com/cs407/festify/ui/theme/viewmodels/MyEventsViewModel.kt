@@ -191,8 +191,7 @@ class MyEventsViewModel @Inject constructor(
 
                 if (result.isSuccess) {
                     println("Event updated successfully")
-                    // Refresh the list to reflect changes
-                    observeMyEvents()
+                    // No need to manually refresh - the Firestore listener will automatically update
                 } else {
                     println("Update failed: ${result.exceptionOrNull()?.message}")
                     println("--- DATABASE ERROR: ${result.exceptionOrNull()?.message} ---")
@@ -216,8 +215,8 @@ class MyEventsViewModel @Inject constructor(
             val result = eventRepository.updateEvent(event.id, updates)
 
             if (result.isFailure) {
-                // Revert on failure
-                observeMyEvents()
+                // Revert on failure - the Firestore listener will restore the original state
+                println("Failed to cancel event: ${result.exceptionOrNull()?.message}")
             }
         }
     }
