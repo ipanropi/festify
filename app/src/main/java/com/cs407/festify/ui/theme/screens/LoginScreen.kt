@@ -25,6 +25,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -167,7 +168,7 @@ fun LoginScreen(
                         onValueChange = { email = it },
                         placeholder = { Text("Username or Email") },
                         leadingIcon = {
-                            androidx.compose.material3.Icon(
+                            Icon(
                                 imageVector = Icons.Default.Email,
                                 contentDescription = "Email"
                             )
@@ -183,7 +184,7 @@ fun LoginScreen(
                         onValueChange = { password = it },
                         placeholder = { Text("Password") },
                         leadingIcon = {
-                            androidx.compose.material3.Icon(
+                            Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = "Password"
                             )
@@ -296,7 +297,7 @@ fun LoginScreen(
                             contentColor = Color.Black
                         )
                     ) {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             imageVector = Icons.Default.Android,
                             contentDescription = "Google Sign-In",
                             tint = Color(0xFF555555)
